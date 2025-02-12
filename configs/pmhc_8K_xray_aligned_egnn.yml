@@ -1,0 +1,95 @@
+# Logging Traing only
+logdir: './Experiments/Structure_prediction/Logs_Experiments/pmhc_8K_xray_egnn/'
+project: 'Structur_prediction_Experiments'
+run_name: 'pmhc_8K_xray_aligned_egnn_BS60'
+entity: 'neuro-ai-scientist'
+
+# Training
+num_epochs: 1000
+device: 'cuda'
+gpus: 1
+
+batch_size: 32 # 16, 64
+lr: 5.0e-4
+num_workers: 18
+
+# Task
+task_params:
+  protein_pocket_fixed: True
+  features_fixed: True
+
+# Dataset
+dataset: 'pmhc_8K_xray'
+data_dir: "/gpfs/home4/dfruhbus/ECGDM/Data/Peptide_data/pmhc_xray_8K_aligned/folds/fold_1/"
+dataset_params:
+  num_atoms: 20 # obtained from constant file
+  num_residues: 20
+  norm_values: [1,1] # for moad [1,4]
+
+generative_model: 'conditional_diffusion'
+generative_model_params:
+  timesteps: 1000
+  position_encoding: True
+  position_encoding_dim: 10
+  com_handling: 'peptide' # 'protein' 'both' 'peptide' 'no_COM'
+  sampling_stepsize: 8
+  noise_scaling: null
+  high_noise_training: False
+
+
+architecture: 'egnn'
+network_params: 
+  # general network parameters
+  conditioned_on_time: True
+  joint_dim: 32
+  hidden_dim: 64
+  num_layers: 3
+  # edges
+  edge_embedding_dim: 8
+  edge_cutoff_ligand: null
+  edge_cutoff_pocket: 8.0
+  edge_cutoff_interaction: 14.0
+  # egnn specific
+  attention: True
+  tanh: True
+  norm_constant: 1
+  inv_sublayers: 1
+  sin_embedding: True
+  normalization_factor: 100
+  aggregation_method: 'sum'
+  reflection_equivariant: False
+
+# Eval
+checkpoint: './Experiments/Structure_prediction/Logs_Experiments/fold_1/checkpoints/best-model-epoch=epoch=988.ckpt' 
+num_samples: 10
+sample_batch_size: 6 # 10
+sampling_without_noise: False
+sample_savepath: './Experiments/Structure_prediction/Logs_Experiments/fold_1_fast1/samples'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
