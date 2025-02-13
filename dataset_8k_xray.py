@@ -41,7 +41,7 @@ class PDB_Dataset(Dataset):
         """
         Args:
             datadir (str): Path to the directory where HDF5 files are located.
-            split (str): Dataset split, one of 'train', 'val', 'test'.
+            split (str): Dataset split, one of 'train', 'valid', 'test'.
         """
         # Define the HDF5 file paths for the dataset split
         self.hdf5_path = os.path.join(datadir, f'{split}.hdf5')

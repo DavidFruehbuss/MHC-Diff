@@ -5,26 +5,25 @@ run_name: 'pmhc_8K_xray_aligned_egnn_1'
 entity: 'neuro-ai-scientist'
 
 # Training
-num_epochs: 1000
+num_epochs: 1000 # TODO: early stopping?? -> prevent overfitting
 device: 'cuda'
 gpus: 1
 
-batch_size: 32 # 16, 64
+batch_size: 32
 lr: 5.0e-4
 num_workers: 18
 
 # Task
 task_params:
-  protein_pocket_fixed: True
   features_fixed: True
 
 # Dataset
 data_dir: "/gpfs/home4/dfruhbus/MHC-Diff/data/pmhc_xray_8K_aligned/folds/fold_1/"
 dataset: 'pmhc_8K_xray'
 dataset_params:
-  num_atoms: 20 # obtained from constant file
+  num_atoms: 20
   num_residues: 20
-  norm_values: [1,1] # for moad [1,4]
+  norm_values: [1,1]
 
 generative_model: 'conditional_diffusion'
 generative_model_params:
@@ -62,7 +61,7 @@ network_params:
 # Eval
 checkpoint: './checkpoints/fold_1/checkpoints/best-model-epoch=epoch=988.ckpt' 
 num_samples: 10
-sample_batch_size: 10 # 10
+sample_batch_size: 10
 sampling_without_noise: False
 sample_savepath: './results/fold_1_fast50/samples'
 

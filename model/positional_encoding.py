@@ -33,12 +33,3 @@ def sin_pE(node_indices, num_features=10):
     sinusoidal_features[:, 1::2] = torch.cos(node_indices_expanded[:, 1::2] * frequencies[0::2])  # Odd indices: cosine
 
     return sinusoidal_features
-
-
-
-
-# Example usage:
-# graph_nodes = [1, 2, 3, 4, 5]  # List of node indices in the graph
-# num_features = 16  # Number of features in the encoding
-# sinusoidal_encoding = sinusoidal_node_features_for_graph(graph_nodes, num_features)
-# print("Sinusoidal node features for the graph nodes:", sinusoidal_encoding)

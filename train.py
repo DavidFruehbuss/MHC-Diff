@@ -11,15 +11,17 @@ import pytorch_lightning as pl
 
 if __name__ == "__main__":
 	
+    # Setup working directory and importing
     desired_directory = '/gpfs/home4/dfruhbus/MHC-Diff/'
     os.chdir(desired_directory)
     sys.path.insert(0, desired_directory)
     from model.lightning_module import Structure_Prediction_Model
 
-    # seed = 42
-    # torch.manual_seed(seed)
-    # torch.backends.cudnn.deterministic = True
-    # torch.backends.cudnn.benchmark = False
+    # Set seed for reproducibitliy
+    seed = 42
+    torch.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
     # read in config
     parser = argparse.ArgumentParser()

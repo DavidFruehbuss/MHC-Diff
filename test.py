@@ -18,6 +18,7 @@ if __name__ == "__main__":
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+    # set working directory and import modules
     desired_directory = '/gpfs/home4/dfruhbus/MHC-Diff/'
     os.chdir(desired_directory)
     sys.path.insert(0, desired_directory)
@@ -89,7 +90,6 @@ if __name__ == "__main__":
     start_time_total = time.time()
 
     print(len(test_dataset))
-    # temporary for spedtest ToDo: Modify Back
 
     for i in range(0, len(test_dataset), sample_batch_size):
 
@@ -109,7 +109,7 @@ if __name__ == "__main__":
         print(f'Prior to sampling time {time.time() - start_time}')
 
         xh_mol_final, xh_pro_final = lightning_model.model.sample_structure(
-                                        num_samples, molecule, protein_pocket, args.sampling_without_noise, args.run_name,
+                                        num_samples, molecule, protein_pocket, args.sampling_without_noise, args.data_dir, args.run_name,
                                         amino_acid_probability_model=3dssl_model)
 
         print(f'After sampling time {time.time() - start_time}')

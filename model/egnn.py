@@ -1,5 +1,5 @@
 """
-model file copied from [Schneuing et al. 2023]
+EGNN architecture from Schneuing et al. 2023 & Satorras et al. 2022
 """
 
 from torch import nn
@@ -213,21 +213,6 @@ class EGNN(nn.Module):
             edge_feat_nf = 2
         
         edge_feat_nf = edge_feat_nf + in_edge_nf
-
-        #############################################
-        # Siem's edge encoding
-        # if sin_embedding:
-        #     self.sin_embedding = SinusoidsEmbeddingNew()
-        # else:
-        #     self.sin_embedding = None
-
-        # if edge_sin_attr and sin_embedding:
-        #     edge_feat_nf = in_edge_nf + self.sin_embedding.dim
-        # elif edge_sin_attr:
-        #     edge_feat_nf = in_edge_nf + 1
-        # else:
-        #     edge_feat_nf = 2
-        #############################################
 
         self.embedding = nn.Linear(in_node_nf, self.hidden_nf)
         self.embedding_out = nn.Linear(self.hidden_nf, out_node_nf)
