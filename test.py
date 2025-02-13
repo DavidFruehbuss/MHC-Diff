@@ -63,6 +63,11 @@ if __name__ == "__main__":
     lightning_model.setup('test')
     test_dataset = lightning_model.test_dataset
 
+    3dssl_model = None
+    if args.3dssl is not None:
+        3dssl_model = torch.load(args.3dssl, map_location=device)
+        3dssl_model.eval()
+
     ## calculate the test_dataset variance
     var = []
     for data in test_dataset:
@@ -103,7 +108,9 @@ if __name__ == "__main__":
 
         print(f'Prior to sampling time {time.time() - start_time}')
 
-        xh_mol_final, xh_pro_final = lightning_model.model.sample_structure(num_samples, molecule, protein_pocket, args.sampling_without_noise, args.run_name)
+        xh_mol_final, xh_pro_final = lightning_model.model.sample_structure(
+                                        num_samples, molecule, protein_pocket, args.sampling_without_noise, args.run_name,
+                                        amino_acid_probability_model=3dssl_model)
 
         print(f'After sampling time {time.time() - start_time}')
 
