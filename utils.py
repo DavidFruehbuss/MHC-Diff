@@ -31,23 +31,6 @@ def create_new_pdb_hdf5(
          os.makedirs(directory)
 
     write_updated_peptide_coords_pdb(peptide, peptide_idx, pdb_fh, pdb_output_path)
-
-def create_new_pdb(
-        peptide, peptide_idx, graph_name, run_id, time_step
-):
-    # print(graph_name)
-    pdb_number = extract_pdb_number(graph_name)
-    # print(pdb_number)
-    pdb_reference_path_or_stream = find_pdb_filepath(pdb_number)
-
-    # pdb_output_path
-    pdb_output_path = f'./results/sampled_pmhcs/{run_id}/BA-{pdb_number}_{time_step}.pdb'
-
-    directory = os.path.dirname(pdb_output_path)
-    if not os.path.exists(directory):
-         os.makedirs(directory)
-
-    write_updated_peptide_coords_pdb(peptide, peptide_idx, pdb_reference_path_or_stream, pdb_output_path)
     
 def write_updated_peptide_coords_pdb(
     peptide, peptide_idx, pdb_reference_path_or_stream, pdb_output_path, atom_level=False
@@ -104,51 +87,3 @@ def write_updated_peptide_coords_pdb(
     io = PDBIO()
     io.set_structure(pdb_models)
     io.save(str(pdb_output_path))
-
-def extract_pdb_number(input_string):
-    # Use regular expression to find sequences of digits in the input string
-    match = re.search(r'(?<=[-\s])\d+', input_string)
-    if match:
-        return match.group(0)
-    else:
-        return None
-
-def find_pdb_filepath(pdb_number):
-    # # Generate the pattern to match the file paths
-    # pattern = f'/projects/0/einf2380/data/pMHCI/db2_selected_models/BA/*/*/pdb/*{pdb_number}*.pdb'
-    # # Use glob to find files that match the pattern
-    # file_paths = glob.glob(pattern)
-
-    if not os.path.exists('./Data/Peptide_data/pdb_index.pkl'):
-        root_dir = '/projects/0/einf2380/data/pMHCI/db2_selected_models/'
-        pdb_dict = build_pdb_index(root_dir)
-        save_pdb_index(pdb_dict)
-
-    pdb_dict = load_pdb_index()
-
-    return pdb_dict.get(pdb_number)
-    
-def build_pdb_index(root_dir):
-    pdb_dict = {}
-    pattern = re.compile(r'BA-(\d+)\.pdb$')  # Ensure the regex matches the full filename and ends with .pdb
-
-    # Define the specific path pattern to search only necessary directories
-    search_pattern = os.path.join(root_dir, 'BA', '*', '*', 'pdb', '*.pdb')
-    
-    # Use glob to find all pdb files in the specified pattern
-    for file_path in glob.glob(search_pattern, recursive=True):
-        filename = os.path.basename(file_path)
-        match = pattern.search(filename)
-        if match:
-            pdb_number = match.group(1)
-            pdb_dict[pdb_number] = file_path
-    return pdb_dict
-
-def save_pdb_index(pdb_dict, file_path='./results/pdb_index.pkl'):
-    with open(file_path, 'wb') as f:
-        pickle.dump(pdb_dict, f)
-
-def load_pdb_index(file_path='./results/pdb_index.pkl'):
-    with open(file_path, 'rb') as f:
-        pdb_dict = pickle.load(f)
-    return pdb_dict

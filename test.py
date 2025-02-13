@@ -18,6 +18,7 @@ if __name__ == "__main__":
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+    # set working directory and import modules
     desired_directory = '/gpfs/home4/dfruhbus/MHC-Diff/'
     os.chdir(desired_directory)
     sys.path.insert(0, desired_directory)
@@ -84,7 +85,6 @@ if __name__ == "__main__":
     start_time_total = time.time()
 
     print(len(test_dataset))
-    # temporary for spedtest ToDo: Modify Back
 
     for i in range(0, len(test_dataset), sample_batch_size):
 

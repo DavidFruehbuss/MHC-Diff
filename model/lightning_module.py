@@ -37,6 +37,23 @@ class Structure_Prediction_Model(pl.LightningModule):
         """
         Parameters:
 
+        All of these parameters are set in the config file
+
+        dataset: name of the dataset
+        data_dir: path to the data directory folder with train, valid and test hdf5 files
+        dataset_params: dataset parameters (see diffusion_model for details)
+        task_params: task parameters (see diffusion_model for details)
+        generative_model: name of the generative framework (only conditional diffusion currently available)
+        generative_model_params: generative model parameters (see diffusion_model for details)
+        architecture: neural network model name
+        network_params: neural network parameters (see architecture for details)
+        batch_size: batch size 
+            in training: size of stochastic min-batches for learning
+            in sampling: size of parallel generation
+        lr: learning rate
+        num_workers: number of workers
+        device: hardware to run on (should be a gpu)
+
         
         """
         
@@ -53,7 +70,6 @@ class Structure_Prediction_Model(pl.LightningModule):
         self.neural_net = NN_Model(
             # model parameters
             architecture,
-            task_params.protein_pocket_fixed,
             task_params.features_fixed,
             generative_model_params.position_encoding,
             generative_model_params.position_encoding_dim,
@@ -66,7 +82,6 @@ class Structure_Prediction_Model(pl.LightningModule):
         self.model = frameworks[generative_model](
             # framework parameters
             self.neural_net,
-            task_params.protein_pocket_fixed,
             task_params.features_fixed,
             generative_model_params.timesteps,
             generative_model_params.position_encoding,
@@ -77,7 +92,6 @@ class Structure_Prediction_Model(pl.LightningModule):
             dataset_params.num_atoms,
             dataset_params.num_residues,
             dataset_params.norm_values,
-            dataset,
         )
         
         self.dataset = dataset
@@ -86,52 +100,15 @@ class Structure_Prediction_Model(pl.LightningModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
 
-        # transform for ligand data
-        if self.dataset == 'ligand':
-            self.data_transform = None
-
     # Data section
 
     def setup(self, stage):
-        if self.dataset == 'pmhc_100K':
 
-            if stage == 'fit':
-                self.train_dataset = Peptide_MHC_8K_Dataset(self.data_dir, 'train', self.dataset)
-                self.val_dataset = Peptide_MHC_8K_Dataset(self.data_dir, 'valid', self.dataset)
-            elif stage == 'test':
-                self.test_dataset = Peptide_MHC_8K_Dataset(self.data_dir, 'test', self.dataset)
-
-        elif self.dataset == 'pmhc_8K':
-
-            if stage == 'fit':
-                self.train_dataset = Peptide_MHC_8K_Dataset(self.data_dir, 'train', self.dataset)
-                self.val_dataset = Peptide_MHC_8K_Dataset(self.data_dir, 'valid', self.dataset)
-            elif stage == 'test':
-                self.test_dataset = Peptide_MHC_8K_Dataset(self.data_dir, 'test', self.dataset)
-
-        elif self.dataset == 'pmhc_8K_xray':
-
-            if stage == 'fit':
-                self.train_dataset = PDB_Dataset(self.data_dir, 'train')
-                self.val_dataset = PDB_Dataset(self.data_dir, 'valid')
-            elif stage == 'test':
-                self.test_dataset = PDB_Dataset(self.data_dir, 'test')
-
-        elif self.dataset == 'ligand':
-
-            if stage == 'fit':
-                self.train_dataset = ProcessedLigandPocketDataset(
-                    Path(self.data_dir, 'train.npz'), transform=self.data_transform)
-                self.val_dataset = ProcessedLigandPocketDataset(
-                    Path(self.data_dir, 'val.npz'), transform=self.data_transform)
-            elif stage == 'test':
-                self.test_dataset = ProcessedLigandPocketDataset(
-                    Path(self.data_dir, 'test.npz'), transform=self.data_transform)
-            else:
-                raise NotImplementedError
-            
-        else:
-            raise Exception(f"Wrong dataset {self.dataset}")
+        if stage == 'fit':
+            self.train_dataset = PDB_Dataset(self.data_dir, 'train')
+            self.val_dataset = PDB_Dataset(self.data_dir, 'valid')
+        elif stage == 'test':
+            self.test_dataset = PDB_Dataset(self.data_dir, 'test')
 
     def train_dataloader(self):
         # Need to pick a dataloader (geometric or normal)
@@ -157,44 +134,22 @@ class Structure_Prediction_Model(pl.LightningModule):
         '''
         function to unpack the molecule and it's protein
         '''
-        if self.dataset in ['pmhc_100K','pmhc_8K','pmhc_8K_xray']:
+        molecule = {
+            'x': data['peptide_positions'].to(self.device, FLOAT_TYPE),
+            'h': data['peptide_features'].to(self.device, FLOAT_TYPE),
+            'size': data['num_peptide_residues'].to(self.device, INT_TYPE),
+            'idx': data['peptide_idx'].to(self.device, INT_TYPE),
+            'pos_in_seq': data['pos_in_seq'].to(self.device, INT_TYPE),
+            'graph_name': data['graph_name'],
+        }
 
-            molecule = {
-                'x': data['peptide_positions'].to(self.device, FLOAT_TYPE),
-                'h': data['peptide_features'].to(self.device, FLOAT_TYPE),
-                'size': data['num_peptide_residues'].to(self.device, INT_TYPE),
-                'idx': data['peptide_idx'].to(self.device, INT_TYPE),
-                'pos_in_seq': data['pos_in_seq'].to(self.device, INT_TYPE),
-                'graph_name': data['graph_name'],
-            }
-
-            protein_pocket = {
-                'x': data['protein_pocket_positions'].to(self.device, FLOAT_TYPE),
-                'h': data['protein_pocket_features'].to(self.device, FLOAT_TYPE),
-                'size': data['num_protein_pocket_residues'].to(self.device, INT_TYPE),
-                'idx': data['protein_pocket_idx'].to(self.device, INT_TYPE)
-            }
-            return (molecule, protein_pocket)
-
-        elif self.dataset == 'ligand':
-        
-            molecule = {
-                'x': data['lig_coords'].to(self.device, FLOAT_TYPE),
-                'h': data['lig_one_hot'].to(self.device, FLOAT_TYPE),
-                'size': data['num_lig_atoms'].to(self.device, INT_TYPE),
-                'idx': data['lig_mask'].to(self.device, INT_TYPE),
-            }
-
-            protein_pocket = {
-                'x': data['pocket_coords'].to(self.device, FLOAT_TYPE),
-                'h': data['pocket_one_hot'].to(self.device, FLOAT_TYPE),
-                'size': data['num_pocket_nodes'].to(self.device, INT_TYPE),
-                'idx': data['pocket_mask'].to(self.device, INT_TYPE)
-            }
-            return (molecule, protein_pocket)
-
-        else:
-            raise Exception(f"Wrong dataset {self.dataset}")
+        protein_pocket = {
+            'x': data['protein_pocket_positions'].to(self.device, FLOAT_TYPE),
+            'h': data['protein_pocket_features'].to(self.device, FLOAT_TYPE),
+            'size': data['num_protein_pocket_residues'].to(self.device, INT_TYPE),
+            'idx': data['protein_pocket_idx'].to(self.device, INT_TYPE)
+        }
+        return (molecule, protein_pocket)
         
 
     # training section

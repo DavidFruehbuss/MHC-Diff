@@ -43,7 +43,6 @@ class Noise_Schedule(nn.Module):
     def clip_noise_schedule(self, alphas2, clip_value=0.001):
 
         """
-        Function copied from [Schneuing et al. 2023]
         For a noise schedule given by alpha^2, this clips alpha_t / alpha_t-1.
         This may help improve stability during sampling.
         """
