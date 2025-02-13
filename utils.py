@@ -12,10 +12,10 @@ import h5py
 from io import StringIO
 
 def create_new_pdb_hdf5(
-        peptide, peptide_idx, graph_name, run_id, time_step
+        peptide, peptide_idx, graph_name, run_id, data_dir, time_step
 ):
     # TODO: modify this to be adaptable
-    hdf5_file = h5py.File('./data/pmhc_xray_8K_aligned/folds/fold_1/test.hdf5', 'r')
+    hdf5_file = h5py.File(f'{data_dir}/test.hdf5', 'r')
         
     pdb_names = hdf5_file['pdb_names'][:]
     pdb_strings = hdf5_file['pdb_strings'][:]

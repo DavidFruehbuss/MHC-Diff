@@ -566,6 +566,7 @@ class Conditional_Diffusion_Model(nn.Module):
             molecule,
             protein_pocket,
             sampling_without_noise,
+            data_dir,
             run_id,
         ):
         '''
@@ -858,12 +859,12 @@ class Conditional_Diffusion_Model(nn.Module):
 
         sampled_structures = (xh_mol_final, xh_pro_final)
 
-        self.safe_pdbs(xh_mol_final, molecule, run_id, time_step='F')
+        self.safe_pdbs(xh_mol_final, molecule, run_id, data_dir, time_step='F')
         
 
         return sampled_structures
     
-    def safe_pdbs(self, pos, molecule, run_id, time_step):
+    def safe_pdbs(self, pos, molecule, run_id, data_dir, time_step):
 
         for i in range(len(molecule['size'])):
             # (1) extract the peptide position
@@ -884,7 +885,7 @@ class Conditional_Diffusion_Model(nn.Module):
 
             elif self.dataset == 'pmhc_8K_xray':
 
-                create_new_pdb_hdf5(peptide_pos, peptide_idx, graph_name, run_id, time_step=time_step)
+                create_new_pdb_hdf5(peptide_pos, peptide_idx, graph_name, run_id, data_dir, time_step=time_step)
         
             else: 
                 return

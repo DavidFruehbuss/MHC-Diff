@@ -6,7 +6,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --time=04:00:00
-#SBATCH --output=../outs/pmhc_8K_egnn_xray
+#SBATCH --output=../outs/pmhc_8K_egnn_xray 
 
 module purge
 module load 2023
