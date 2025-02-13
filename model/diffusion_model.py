@@ -1,16 +1,19 @@
 import torch
 import numpy as np
 import math
+from typing import List, Tuple, Optional
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_scatter import scatter_add, scatter_mean
 
 from model.noise_schedule import Noise_Schedule
 from utils import create_new_pdb, create_new_pdb_hdf5
+from dataset_8k_xray import convert_amino_acid_to_3dssl
 
 """
 This file implements the generative framework [diffusion model] for the model
@@ -567,6 +570,8 @@ class Conditional_Diffusion_Model(nn.Module):
             protein_pocket,
             sampling_without_noise,
             run_id,
+            amino_acid_probability_model: Optional[nn.Module] = None,
+            energy_scale: Optional[float] = 1.0,
         ):
         '''
         This function takes a molecule and a protein and return the most likely joint structure.
@@ -574,6 +579,8 @@ class Conditional_Diffusion_Model(nn.Module):
         Instead of giving a batch of molecule-protein pairs, we give a batch of identical replicates
         of the same pair, with the batch_size being the number of samples we want to generate.
         '''
+
+        protein_x0 = protein_pocket['x']
 
         if self.protein_pocket_fixed == False:
             # for this the sampling would change due to COM trick
@@ -712,6 +719,11 @@ class Conditional_Diffusion_Model(nn.Module):
 
         max_T = self.T
 
+        # sample final molecules with t = 0 (p(x|z_0)) [all the above steps but for t = 0]
+        t_0_array_norm = torch.zeros((num_samples, 1), device=device)
+        alpha_0 = self.noise_schedule(t_0_array_norm, 'alpha')
+        sigma_0 = self.noise_schedule(t_0_array_norm, 'sigma')
+
         ##################
         # Sanity Check with ts steps from ts/1000 noised sample
         # ts = 950
@@ -732,6 +744,8 @@ class Conditional_Diffusion_Model(nn.Module):
 
         # Iterativly denoise stepwise for t = T,...,1; stepsize default is 1
         for s in reversed(range(0, max_T, self.sampling_stepsize)):
+
+            t = s + 1
 
             # if s < max_T-4: raise NameError
 
@@ -754,6 +768,9 @@ class Conditional_Diffusion_Model(nn.Module):
             sigma_t_given_s = torch.sqrt(1 - (alpha_t_given_s)**2 )
             sigma2_t_given_s = sigma_t_given_s**2
 
+            # required for guided diffusion
+            molecule_xt = xh_mol[:, :3].clone().requires_grad_()
+
             # use neural network to predict noise
             epsilon_hat_mol, _ = self.neural_net(xh_mol, xh_pro, t_array_norm, molecule['idx'], protein_pocket['idx'], molecule_pos)
 
@@ -773,6 +790,22 @@ class Conditional_Diffusion_Model(nn.Module):
 
             xh_mol[:,:3] = mean_mol_s[:,:3] + sigma_mol_s[molecule['idx']] * eps_mol_random[:,:3]
             xh_pro = xh_pro.detach().clone() # for safety (probally not necessary)
+
+            if amino_acid_probability_model is not None:
+
+                # derive statistic potential, using the model
+                energy = self._get_energy(amino_acid_probability_model,
+                            protein_x0, self._predict_x0_from_xt(molecule_xt, epsilon_hat_mol,
+                                                                 alpha_t[molecule['idx']],
+                                                                 sigma_t[molecule['idx']]),
+                            convert_amino_acid_to_3dssl(protein_h0),
+                            convert_amino_acid_to_3dssl(molecule_h0)
+                )
+
+                # add the extra term to guid the sampling
+                x_mol = xh_mol[:,:3]
+                x_mol += energy_scale * torch.autograd.grad(outputs=energy, inputs=molecule_xt)
+                xh_mol[:,:3]  = x_mol
 
             if sampling_without_noise == True:
                 xh_mol = mean_mol_s.clone().detach()
@@ -799,11 +832,6 @@ class Conditional_Diffusion_Model(nn.Module):
             rmse = torch.sqrt(error_mol / (3 * molecule['size']))
             # print(rmse)
             # wandb.log({'RMSE now': rmse.mean(0).item()})
-
-        # sample final molecules with t = 0 (p(x|z_0)) [all the above steps but for t = 0]
-        t_0_array_norm = torch.zeros((num_samples, 1), device=device)
-        alpha_0 = self.noise_schedule(t_0_array_norm, 'alpha')
-        sigma_0 = self.noise_schedule(t_0_array_norm, 'sigma')
 
         # use neural network to predict noise
         epsilon_hat_mol_0, _ = self.neural_net(xh_mol, xh_pro, t_0_array_norm, molecule['idx'], protein_pocket['idx'], molecule_pos)
@@ -859,10 +887,9 @@ class Conditional_Diffusion_Model(nn.Module):
         sampled_structures = (xh_mol_final, xh_pro_final)
 
         self.safe_pdbs(xh_mol_final, molecule, run_id, time_step='F')
-        
 
         return sampled_structures
-    
+
     def safe_pdbs(self, pos, molecule, run_id, time_step):
 
         for i in range(len(molecule['size'])):
@@ -885,6 +912,71 @@ class Conditional_Diffusion_Model(nn.Module):
             elif self.dataset == 'pmhc_8K_xray':
 
                 create_new_pdb_hdf5(peptide_pos, peptide_idx, graph_name, run_id, time_step=time_step)
-        
+
             else: 
                 return
+
+    def _get_energy(
+        self,
+        amino_acid_probability_model: nn.Module,
+        protein_positions: torch.Tensor,
+        molecule_positions: torch.Tensor,
+        protein_amino_acids_onehot: torch.Tensor,
+        molecule_amino_acids_onehot: torch.Tensor,
+    ) -> torch.Tensor:
+
+        node_features, positions, edge_index, edge_features = self._convert_to_graph(
+            [
+                (protein_positions, protein_amino_acids_onehot),
+                (molecule_positions, molecule_amino_acids_onehot),
+            ]
+        )
+
+        probabilities = amino_acid_probability_model(node_features, positions, edge_index, edge_features)
+        molecule_probabilities = probabilities[protein_positions.shape[-2]:]
+
+        neg_log_probabilities = -torch.nn.functional.log_softmax(molecule_probabilities, dim=-1)
+
+        energies = (neg_log_probabilities * molecule_amino_acids_onehot).sum(dim=-1)
+
+        return energies
+
+    def _convert_to_graph(self, data: List[Tuple[torch.Tensor, torch.Tensor]]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+
+        device = data[0][0].device
+
+        entity = torch.cat([torch.full(x.shape[0], i, device=device, dtype=torch.long) for i, (x, h) in enumerate(data)], dim=-1)
+        positions = torch.cat([x for x, h in data], dim=-2)
+        node_features = torch.cat([h for x, h in data], dim=-2)
+        total_length = node_features.shape[0]
+        index = torch.arange(total_length, device=device)
+
+        # connect all nodes to each other
+        edge_index = torch.stack([
+            index[:, None].expand(total_length, total_length),
+            index[None, :].expand(total_length, total_length)
+        ]).transpose(-3, -2).transpose(-2, -1).flatten(-3, -2)
+        # filter out edges that connect a node to itself
+        edge_index = edge_index[edge_index[:, 0] != edge_index[:, 1]]
+
+        
+        edge_features = (entity[edge_index[:, 0]] != entity[edge_index[:, 1]])
+
+        return node_features, positions, edge_index, edge_features
+
+    def _predict_x0_from_xt(
+        self,
+        xt: torch.Tensor,
+        predicted_eps: torch.Tensor,
+        alpha_t: float,
+        sigma_t: float,
+    ) -> torch.Tensor:
+
+        # assume alpha_0 == 1.0 and sigma_0 == 0.0
+        alpha_t_given_0 = alpha_t
+        sqr_sigma_t_given_0 = sigma_t ** 2
+
+        x0_given_t = xt / alpha_t_given_0 - \
+            (predicted_eps * sqr_sigma_t_given_0) / (alpha_t_given_0 * sigma_t)
+
+        return x0_given_t
