@@ -747,4 +747,4 @@ class Conditional_Diffusion_Model(nn.Module):
             else:
                 graph_name = molecule['graph_name'][i]
 
-            create_new_pdb_hdf5(peptide_pos, peptide_idx, graph_name, run_id, data_dir, time_step=time_step)
+            create_new_pdb_hdf5(peptide_pos, peptide_idx, graph_name, run_id, data_dir, time_step=time_step, sample_id=i)
