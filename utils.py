@@ -24,7 +24,7 @@ def create_new_pdb_hdf5(
     # Create a temporary file or use StringIO to make the string readable by parser
     pdb_fh = StringIO(pdb_string)
     
-    pdb_output_path = f'./results/sampled_pmhcs/{run_id}/{graph_name}_{time_step}_{sample_id}.pdb'
+    pdb_output_path = f'./results/structures/{run_id}/{graph_name}_{time_step}_{sample_id}.pdb'
 
     directory = os.path.dirname(pdb_output_path)
     if not os.path.exists(directory):
