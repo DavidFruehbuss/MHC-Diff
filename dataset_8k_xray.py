@@ -19,8 +19,24 @@ def one_hot_encode_sequence(sequence):
             print(f"Warning: Non-standard amino acid '{aa}' found and ignored.")
     return encoding
 
+
+AA_ORDER_3DSSL = ['A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y', 'V', 'U', 'Z', 'X']
+NUM_AA_3DSSL = len(AA_ORDER_3DSSL)
+AA_TO_3DSSL_CONVERSION = [AA_TO_INDEX_3DSSL[a] for i, a in enumerate(AA_LIST)]
+
+def convert_amino_acid_to_3dssl(aa: torch.Tensor) -> torch.Tensor:
+    """
+    3D SSL uses a different amino acid one-hot encoding.
+    This function converts the MHC-Diff one-hot encoded input to 3D SSL one-hot encoded output.
+    """
+
+    conversion = aa.new_tensor(AA_TO_3DSSL_CONVERSION)
+
+    return torch.nn.functional.one_hot(conversion[aa.argmax(dim=-1)], num_classes=NUM_AA_3DSSL)
+
+
 class PDB_Dataset(Dataset):
-    
+
     def __init__(self, datadir, split='train'):
         """
         Args:
