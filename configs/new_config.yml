@@ -31,7 +31,7 @@ generative_model_params:
   position_encoding: True
   position_encoding_dim: 10
   com_handling: 'peptide' # 'protein' 'both' 'peptide' 'no_COM'
-  sampling_stepsize: 50
+  sampling_stepsize: 1 
   noise_scaling: null
   high_noise_training: False
 
@@ -63,7 +63,7 @@ checkpoint: './checkpoints/fold_1/checkpoints/best-model-epoch=epoch=988.ckpt'
 num_samples: 10
 sample_batch_size: 10
 sampling_without_noise: False
-sample_savepath: './results/fold_1_fast50/samples'
+sample_savepath: './results/fold_1/samples'
 
 
 
