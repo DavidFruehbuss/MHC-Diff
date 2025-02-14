@@ -12,7 +12,7 @@ import h5py
 from io import StringIO
 
 def create_new_pdb_hdf5(
-        peptide, peptide_idx, graph_name, run_id, data_dir, time_step
+        peptide, peptide_idx, graph_name, run_id, data_dir, time_step, sample_id
 ):
     # TODO: modify this to be adaptable
     hdf5_file = h5py.File(f'{data_dir}/test.hdf5', 'r')
@@ -24,7 +24,7 @@ def create_new_pdb_hdf5(
     # Create a temporary file or use StringIO to make the string readable by parser
     pdb_fh = StringIO(pdb_string)
     
-    pdb_output_path = f'./results/sampled_pmhcs/{run_id}/{graph_name}_{time_step}.pdb'
+    pdb_output_path = f'./results/structures/{run_id}/{graph_name}_{time_step}_{sample_id}.pdb'
 
     directory = os.path.dirname(pdb_output_path)
     if not os.path.exists(directory):

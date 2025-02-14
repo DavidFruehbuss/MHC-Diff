@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_scatter import scatter_add, scatter_mean
+from torch_geometric.data import Data, Batch
 
 from model.noise_schedule import Noise_Schedule
 from utils import create_new_pdb_hdf5
@@ -546,6 +547,9 @@ class Conditional_Diffusion_Model(nn.Module):
         '''
 
         protein_x0 = protein_pocket['x']
+        protein_h = protein_pocket['h']
+
+        molecule_h = molecule['h']
 
         # replicate (molecule + protein_pocket) to have a batch of num_samples many replicates
         # do this step with Dataset function in lightning_modules
@@ -663,12 +667,19 @@ class Conditional_Diffusion_Model(nn.Module):
             if amino_acid_probability_model is not None:
 
                 # derive statistic potential, using the model
-                energy = self._get_energy(amino_acid_probability_model,
-                            protein_x0, self._predict_x0_from_xt(molecule_xt, epsilon_hat_mol,
-                                                                 alpha_t[molecule['idx']],
-                                                                 sigma_t[molecule['idx']]),
-                            convert_amino_acid_to_3dssl(protein_h0),
-                            convert_amino_acid_to_3dssl(molecule_h0)
+                energy = self._get_energy(
+                            amino_acid_probability_model,
+                            protein_pocket['idx'],
+                            molecule['idx'],
+                            protein_x0,
+                            self._extrapolate_x0_from_xt(
+                                molecule_xt,
+                                epsilon_hat_mol[:, :3],
+                                alpha_t[molecule['idx']],
+                                sigma_t[molecule['idx']],
+                            ),
+                            convert_amino_acid_to_3dssl(protein_h),
+                            convert_amino_acid_to_3dssl(molecule_h),
                 )
 
                 # add the extra term to guid the sampling
@@ -758,7 +769,7 @@ class Conditional_Diffusion_Model(nn.Module):
         self.safe_pdbs(xh_mol_final, molecule, run_id, data_dir, time_step='F')
 
         return sampled_structures
-    
+
     def safe_pdbs(self, pos, molecule, run_id, data_dir, time_step):
 
         for i in range(len(molecule['size'])):
@@ -774,57 +785,121 @@ class Conditional_Diffusion_Model(nn.Module):
             else:
                 graph_name = molecule['graph_name'][i]
 
-            create_new_pdb_hdf5(peptide_pos, peptide_idx, graph_name, run_id, data_dir, time_step=time_step)
+            create_new_pdb_hdf5(peptide_pos, peptide_idx, graph_name, run_id, data_dir, time_step=time_step, sample_id=i)
 
     def _get_energy(
         self,
         amino_acid_probability_model: nn.Module,
+        protein_index: torch.Tensor,
+        molecule_index: torch.Tensor,
         protein_positions: torch.Tensor,
         molecule_positions: torch.Tensor,
         protein_amino_acids_onehot: torch.Tensor,
         molecule_amino_acids_onehot: torch.Tensor,
     ) -> torch.Tensor:
 
-        node_features, positions, edge_index, edge_features = self._convert_to_graph(
-            [
-                (protein_positions, protein_amino_acids_onehot),
-                (molecule_positions, molecule_amino_acids_onehot),
-            ]
+        graphs, graph_ids, graph_entity_ids = self._convert_to_graphs(
+            protein_index, protein_positions, protein_amino_acids_onehot,
+            molecule_index, molecule_positions, molecule_amino_acids_onehot,
         )
 
-        probabilities = amino_acid_probability_model(node_features, positions, edge_index, edge_features)
-        molecule_probabilities = probabilities[protein_positions.shape[-2]:]
+        # [N, 23]
+        probabilities = amino_acid_probability_model(graphs)
 
-        neg_log_probabilities = -torch.nn.functional.log_softmax(molecule_probabilities, dim=-1)
+        # [M]
+        graph_ids = graph_ids[graph_entity_ids]
 
-        energies = (neg_log_probabilities * molecule_amino_acids_onehot).sum(dim=-1)
+        # [M, 23]
+        molecule_probabilities = probabilities[graph_index][graph_entity_ids == 1]
+        print(molecule_probabilities)
 
-        return energies
+        # [M, 23] (one-hot)
+        molecule_targets = molecule_amino_acids_onehot
 
-    def _convert_to_graph(self, data: List[Tuple[torch.Tensor, torch.Tensor]]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        # [M]
+        energy = -torch.nn.functional.log_softmax(molecule_probabilities, dim=-1)[molecule_targets].sum(dim=-1)
 
-        device = data[0][0].device
+        batch_size = len(set(graph_ids.tolist()))
 
-        entity = torch.cat([torch.full(x.shape[0], i, device=device, dtype=torch.long) for i, (x, h) in enumerate(data)], dim=-1)
-        positions = torch.cat([x for x, h in data], dim=-2)
-        node_features = torch.cat([h for x, h in data], dim=-2)
-        total_length = node_features.shape[0]
-        index = torch.arange(total_length, device=device)
+        # [*]
+        energy = energy.scatter_add(torch.zeros(batch_size, device=graph_ids.device), 0, graph_ids, energy)
 
-        # connect all nodes to each other
-        edge_index = torch.stack([
-            index[:, None].expand(total_length, total_length),
-            index[None, :].expand(total_length, total_length)
-        ]).transpose(-3, -2).transpose(-2, -1).flatten(-3, -2)
-        # filter out edges that connect a node to itself
-        edge_index = edge_index[edge_index[:, 0] != edge_index[:, 1]]
+        print(energy)
 
-        
-        edge_features = (entity[edge_index[:, 0]] != entity[edge_index[:, 1]])
+        return energy
 
-        return node_features, positions, edge_index, edge_features
+    def _convert_to_graphs(self,
+        protein_ids: torch.Tensor,
+        protein_positions: torch.Tensor,
+        protein_features: torch.Tensor,
+        molecule_ids: torch.Tensor,
+        molecule_positions: torch.Tensor,
+        molecule_features: torch.Tensor,
+    ) -> Tuple[Data, torch.Tensor, torch.Tensor]:
 
-    def _predict_x0_from_xt(
+        device = protein_ids.device
+
+        node_features = []
+        node_positions = []
+        graph_ids = []
+        entity_ids = []
+        edge_indices = []
+        edge_attrs = []
+        total_nodes = 0
+        for graph_id in set(molecule_ids.tolist()):
+
+            graph_protein_positions = protein_positions[protein_ids == graph_id]
+            graph_protein_features = protein_features[protein_ids == graph_id]
+            graph_molecule_positions = molecule_positions[molecule_ids == graph_id]
+            graph_molecule_features = molecule_features[molecule_ids == graph_id]
+
+            distance_matrix = torch.cdist(graph_protein_positions, graph_molecule_positions)
+
+            min_distances = distance_matrix.min(dim=-1).values
+            pocket_index = (min_distances < 10.0).nonzero()[:,0]
+
+            pocket_positions = graph_protein_positions[pocket_index]
+            pocket_features = graph_protein_features[pocket_index]
+
+            num_nodes = pocket_positions.shape[0] + graph_molecule_positions.shape[0]
+
+            node_positions += [pocket_positions, graph_molecule_positions]
+            node_features += [pocket_features, graph_molecule_features]
+
+            graph_ids += [torch.ones(num_nodes, device=device) * graph_id]
+
+            entity_map = torch.cat([torch.zeros(pocket_positions.shape[0], device=device), torch.ones(graph_molecule_positions.shape[0], device=device)], dim=0)
+            entity_ids += [entity_map]
+
+            node_index = torch.arange(num_nodes, device=device, dtype=torch.long)
+
+            edge_index = torch.stack([
+                node_index[:, None].expand(num_nodes, num_nodes),
+                node_index[None, :].expand(num_nodes, num_nodes),
+            ]).transpose(-3, -2).transpose(-2, -1).flatten(-3, -2)
+
+            edge_index_mask = (edge_index[:, 0] != edge_index[:, 1])
+
+            edge_index = edge_index[edge_index_mask]
+
+            adge_attr = (entity_map[edge_index[:, 0]] != entity_map[edge_index[:, 1]]).unsqueeze(-1)
+
+            edge_indices.append(edge_index + total_nodes)
+            edge_attrs.append(adge_attr)
+
+            total_nodes += num_nodes
+
+        data = Data(
+            x=torch.cat(node_features, dim=0),
+            pos=torch.cat(node_positions, dim=0),
+            edge_index=torch.cat(edge_indices, dim=0),
+            edge_attr=torch.cat(edge_attrs, dim=0),
+        )
+
+        return data, torch.cat(graph_ids, dim=0), torch.cat(entity_ids, dim=0)
+
+
+    def _extrapolate_x0_from_xt(
         self,
         xt: torch.Tensor,
         predicted_eps: torch.Tensor,
