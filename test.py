@@ -19,9 +19,6 @@ if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     # set working directory and import modules
-    desired_directory = '/gpfs/home4/dfruhbus/MHC-Diff/'
-    os.chdir(desired_directory)
-    sys.path.insert(0, desired_directory)
     from model.lightning_module import Structure_Prediction_Model
     from dataset_8k_xray import PDB_Dataset
 
@@ -58,16 +55,16 @@ if __name__ == "__main__":
                     lr=args.lr,
                     num_workers=args.num_workers,
                     device=args.device,
-    )   
+    )
 
     lightning_model = lightning_model.to(device)
     lightning_model.setup('test')
     test_dataset = lightning_model.test_dataset
 
-    3dssl_model = None
-    if args.3dssl is not None:
-        3dssl_model = torch.load(args.3dssl, map_location=device)
-        3dssl_model.eval()
+    model_3dssl = None
+    if args.model_3dssl is not None:
+        model_3dssl = torch.load(args.model_3dssl, map_location=device)
+        model_3dssl.eval()
 
     ## calculate the test_dataset variance
     var = []
@@ -110,7 +107,7 @@ if __name__ == "__main__":
 
         xh_mol_final, xh_pro_final = lightning_model.model.sample_structure(
                                         num_samples, molecule, protein_pocket, args.sampling_without_noise, args.data_dir, args.run_name,
-                                        amino_acid_probability_model=3dssl_model)
+                                        amino_acid_probability_model=model_3dssl)
 
         print(f'After sampling time {time.time() - start_time}')
 
