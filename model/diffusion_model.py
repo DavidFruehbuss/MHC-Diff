@@ -528,7 +528,7 @@ class Conditional_Diffusion_Model(nn.Module):
 
         return SNR_t
     
-    @torch.no_grad()
+#@torch.no_grad()
     def sample_structure(
             self,
             num_samples,
@@ -666,6 +666,8 @@ class Conditional_Diffusion_Model(nn.Module):
 
             if amino_acid_probability_model is not None:
 
+                molecule_xt.requires_grad_(True)
+
                 # derive statistic potential, using the model
                 energy = self._get_energy(
                             amino_acid_probability_model,
@@ -684,7 +686,10 @@ class Conditional_Diffusion_Model(nn.Module):
 
                 # add the extra term to guid the sampling
                 x_mol = xh_mol[:,:3]
-                x_mol += energy_scale * torch.autograd.grad(outputs=energy, inputs=molecule_xt)
+
+                g = torch.autograd.grad(outputs=energy.sum(), inputs=molecule_xt)
+
+                x_mol -= energy_scale * g[0]
                 xh_mol[:,:3]  = x_mol
 
             if sampling_without_noise == True:
@@ -794,37 +799,36 @@ class Conditional_Diffusion_Model(nn.Module):
         molecule_index: torch.Tensor,
         protein_positions: torch.Tensor,
         molecule_positions: torch.Tensor,
-        protein_amino_acids_onehot: torch.Tensor,
-        molecule_amino_acids_onehot: torch.Tensor,
+        protein_amino_acids: torch.Tensor,
+        molecule_amino_acids: torch.Tensor,
     ) -> torch.Tensor:
 
         graphs, graph_ids, graph_entity_ids = self._convert_to_graphs(
-            protein_index, protein_positions, protein_amino_acids_onehot,
-            molecule_index, molecule_positions, molecule_amino_acids_onehot,
+            protein_index, protein_positions, protein_amino_acids,
+            molecule_index, molecule_positions, molecule_amino_acids,
         )
 
         # [N, 23]
         probabilities = amino_acid_probability_model(graphs)
 
         # [M]
-        graph_ids = graph_ids[graph_entity_ids]
+        graph_ids = graph_ids[graph_entity_ids == 1]
 
         # [M, 23]
-        molecule_probabilities = probabilities[graph_index][graph_entity_ids == 1]
-        print(molecule_probabilities)
+        molecule_probabilities = probabilities[graph_entity_ids == 1]
+        print("mol prob",molecule_probabilities.shape)
 
         # [M, 23] (one-hot)
-        molecule_targets = molecule_amino_acids_onehot
+        molecule_targets = F.one_hot(molecule_amino_acids, num_classes=23)
+
+        print("mol targets",molecule_targets.shape)
 
         # [M]
-        energy = -torch.nn.functional.log_softmax(molecule_probabilities, dim=-1)[molecule_targets].sum(dim=-1)
+        energy = -(torch.nn.functional.log_softmax(molecule_probabilities, dim=-1) * molecule_targets).sum(dim=-1)
 
         batch_size = len(set(graph_ids.tolist()))
 
-        # [*]
-        energy = energy.scatter_add(torch.zeros(batch_size, device=graph_ids.device), 0, graph_ids, energy)
-
-        print(energy)
+        print("energy", energy.shape)
 
         return energy
 
@@ -853,22 +857,22 @@ class Conditional_Diffusion_Model(nn.Module):
             graph_molecule_positions = molecule_positions[molecule_ids == graph_id]
             graph_molecule_features = molecule_features[molecule_ids == graph_id]
 
-            distance_matrix = torch.cdist(graph_protein_positions, graph_molecule_positions)
+            #distance_matrix = torch.cdist(graph_protein_positions, graph_molecule_positions)
 
-            min_distances = distance_matrix.min(dim=-1).values
-            pocket_index = (min_distances < 10.0).nonzero()[:,0]
+            #min_distances = distance_matrix.min(dim=-1).values
+            #pocket_index = (min_distances < 10.0).nonzero()[:,0]
 
-            pocket_positions = graph_protein_positions[pocket_index]
-            pocket_features = graph_protein_features[pocket_index]
+            #pocket_positions = graph_protein_positions[pocket_index]
+            #pocket_features = graph_protein_features[pocket_index]
 
-            num_nodes = pocket_positions.shape[0] + graph_molecule_positions.shape[0]
+            num_nodes = graph_protein_positions.shape[0] + graph_molecule_positions.shape[0]
 
-            node_positions += [pocket_positions, graph_molecule_positions]
-            node_features += [pocket_features, graph_molecule_features]
+            node_positions += [graph_protein_positions, graph_molecule_positions]
+            node_features += [graph_protein_features, graph_molecule_features]
 
             graph_ids += [torch.ones(num_nodes, device=device) * graph_id]
 
-            entity_map = torch.cat([torch.zeros(pocket_positions.shape[0], device=device), torch.ones(graph_molecule_positions.shape[0], device=device)], dim=0)
+            entity_map = torch.cat([torch.zeros(graph_protein_positions.shape[0], device=device), torch.ones(graph_molecule_positions.shape[0], device=device)], dim=0)
             entity_ids += [entity_map]
 
             node_index = torch.arange(num_nodes, device=device, dtype=torch.long)
@@ -881,6 +885,8 @@ class Conditional_Diffusion_Model(nn.Module):
             edge_index_mask = (edge_index[:, 0] != edge_index[:, 1])
 
             edge_index = edge_index[edge_index_mask]
+
+            edge_index.requires_grad_(False)
 
             adge_attr = (entity_map[edge_index[:, 0]] != entity_map[edge_index[:, 1]]).unsqueeze(-1)
 

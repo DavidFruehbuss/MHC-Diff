@@ -3,6 +3,7 @@ import h5py
 import torch
 from torch.utils.data import Dataset
 from Bio import PDB  # Biopython's PDB parser
+from Bio.SeqUtils import seq1
 from typing import Dict
 
 # Define amino acid one-hot encoding for 20 standard residues
@@ -21,6 +22,7 @@ def one_hot_encode_sequence(sequence):
 
 
 AA_ORDER_3DSSL = ['A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y', 'V', 'U', 'Z', 'X']
+AA_TO_INDEX_3DSSL = {a: i for i, a in enumerate(AA_ORDER_3DSSL)}
 NUM_AA_3DSSL = len(AA_ORDER_3DSSL)
 AA_TO_3DSSL_CONVERSION = [AA_TO_INDEX_3DSSL[a] for i, a in enumerate(AA_LIST)]
 
@@ -30,9 +32,10 @@ def convert_amino_acid_to_3dssl(aa: torch.Tensor) -> torch.Tensor:
     This function converts the MHC-Diff one-hot encoded input to 3D SSL one-hot encoded output.
     """
 
-    conversion = aa.new_tensor(AA_TO_3DSSL_CONVERSION)
+    conversion = torch.tensor(AA_TO_3DSSL_CONVERSION, dtype=torch.long, device=aa.device)
 
-    return torch.nn.functional.one_hot(conversion[aa.argmax(dim=-1)], num_classes=NUM_AA_3DSSL)
+    return conversion[aa.argmax(dim=-1)]
+    #return torch.nn.functional.one_hot(conversion[aa.argmax(dim=-1)], num_classes=NUM_AA_3DSSL)
 
 
 class PDB_Dataset(Dataset):
@@ -152,7 +155,7 @@ class PDB_Dataset(Dataset):
 
             if 'CA' in residue:
                 ca_coords.append(residue['CA'].coord)
-                sequence.append(PDB.Polypeptide.three_to_one(residue.resname))
+                sequence.append(seq1(residue.resname))
             else:
                 print(f"Warning: Missing CA atom for residue {residue.resname} in chain {chain.id}")
 
