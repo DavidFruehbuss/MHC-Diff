@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from torch_scatter import scatter_add, scatter_mean
 from torch_geometric.data import Data, Batch
 
+from model.architecture import NN_Model
 from model.noise_schedule import Noise_Schedule
 from utils import create_new_pdb_hdf5
 from dataset_8k_xray import convert_amino_acid_to_3dssl
@@ -670,6 +671,7 @@ class Conditional_Diffusion_Model(nn.Module):
 
                 # derive statistic potential, using the model
                 energy = self._get_energy(
+                            self.neural_net,
                             amino_acid_probability_model,
                             protein_pocket['idx'],
                             molecule['idx'],
@@ -794,6 +796,7 @@ class Conditional_Diffusion_Model(nn.Module):
 
     def _get_energy(
         self,
+        edge_definition_model: NN_Model,
         amino_acid_probability_model: nn.Module,
         protein_index: torch.Tensor,
         molecule_index: torch.Tensor,
@@ -803,7 +806,8 @@ class Conditional_Diffusion_Model(nn.Module):
         molecule_amino_acids: torch.Tensor,
     ) -> torch.Tensor:
 
-        graphs, graph_ids, graph_entity_ids = self._convert_to_graphs(
+        graphs, graph_entity_ids = self._convert_to_3dssl_graphs(
+            edge_definition_model,
             protein_index, protein_positions, protein_amino_acids,
             molecule_index, molecule_positions, molecule_amino_acids,
         )
@@ -811,28 +815,19 @@ class Conditional_Diffusion_Model(nn.Module):
         # [N, 23]
         probabilities = amino_acid_probability_model(graphs)
 
-        # [M]
-        graph_ids = graph_ids[graph_entity_ids == 1]
-
         # [M, 23]
         molecule_probabilities = probabilities[graph_entity_ids == 1]
-        print("mol prob",molecule_probabilities.shape)
 
         # [M, 23] (one-hot)
         molecule_targets = F.one_hot(molecule_amino_acids, num_classes=23)
 
-        print("mol targets",molecule_targets.shape)
-
         # [M]
         energy = -(torch.nn.functional.log_softmax(molecule_probabilities, dim=-1) * molecule_targets).sum(dim=-1)
 
-        batch_size = len(set(graph_ids.tolist()))
-
-        print("energy", energy.shape)
-
         return energy
 
-    def _convert_to_graphs(self,
+    def _convert_to_3dssl_graphs(self,
+        edge_definition_model: NN_Model,
         protein_ids: torch.Tensor,
         protein_positions: torch.Tensor,
         protein_features: torch.Tensor,
@@ -843,67 +838,24 @@ class Conditional_Diffusion_Model(nn.Module):
 
         device = protein_ids.device
 
-        node_features = []
-        node_positions = []
-        graph_ids = []
-        entity_ids = []
-        edge_indices = []
-        edge_attrs = []
-        total_nodes = 0
-        for graph_id in set(molecule_ids.tolist()):
+        edge_index = edge_definition_model.get_edges(molecule_ids, protein_ids, molecule_positions, protein_positions)
+        edge_index.transpose(0, 1)
 
-            graph_protein_positions = protein_positions[protein_ids == graph_id]
-            graph_protein_features = protein_features[protein_ids == graph_id]
-            graph_molecule_positions = molecule_positions[molecule_ids == graph_id]
-            graph_molecule_features = molecule_features[molecule_ids == graph_id]
+        node_positions = torch.cat((molecule_positions, protein_positions), dim=0)
+        node_features = torch.cat((molecule_features, protein_features), dim=0)
+        entity_ids = torch.cat((torch.ones(molecule_positions.shape[0], device=device),
+                                torch.zeros(protein_positions.shape[0], device=device)), dim=0)
 
-            #distance_matrix = torch.cdist(graph_protein_positions, graph_molecule_positions)
-
-            #min_distances = distance_matrix.min(dim=-1).values
-            #pocket_index = (min_distances < 10.0).nonzero()[:,0]
-
-            #pocket_positions = graph_protein_positions[pocket_index]
-            #pocket_features = graph_protein_features[pocket_index]
-
-            num_nodes = graph_protein_positions.shape[0] + graph_molecule_positions.shape[0]
-
-            node_positions += [graph_protein_positions, graph_molecule_positions]
-            node_features += [graph_protein_features, graph_molecule_features]
-
-            graph_ids += [torch.ones(num_nodes, device=device) * graph_id]
-
-            entity_map = torch.cat([torch.zeros(graph_protein_positions.shape[0], device=device), torch.ones(graph_molecule_positions.shape[0], device=device)], dim=0)
-            entity_ids += [entity_map]
-
-            node_index = torch.arange(num_nodes, device=device, dtype=torch.long)
-
-            edge_index = torch.stack([
-                node_index[:, None].expand(num_nodes, num_nodes),
-                node_index[None, :].expand(num_nodes, num_nodes),
-            ]).transpose(-3, -2).transpose(-2, -1).flatten(-3, -2)
-
-            edge_index_mask = (edge_index[:, 0] != edge_index[:, 1])
-
-            edge_index = edge_index[edge_index_mask]
-
-            edge_index.requires_grad_(False)
-
-            adge_attr = (entity_map[edge_index[:, 0]] != entity_map[edge_index[:, 1]]).unsqueeze(-1)
-
-            edge_indices.append(edge_index + total_nodes)
-            edge_attrs.append(adge_attr)
-
-            total_nodes += num_nodes
+        edge_attr = (entity_ids[edge_index[:, 0]] != entity_ids[edge_index[:, 1]]).unsqueeze(-1)
 
         data = Data(
-            x=torch.cat(node_features, dim=0),
-            pos=torch.cat(node_positions, dim=0),
-            edge_index=torch.cat(edge_indices, dim=0),
-            edge_attr=torch.cat(edge_attrs, dim=0),
+            x=node_features,
+            pos=node_positions,
+            edge_index=edge_index,
+            edge_attr=edge_attr,
         )
 
-        return data, torch.cat(graph_ids, dim=0), torch.cat(entity_ids, dim=0)
-
+        return data, entity_ids
 
     def _extrapolate_x0_from_xt(
         self,
@@ -915,7 +867,7 @@ class Conditional_Diffusion_Model(nn.Module):
 
         # assume alpha_0 == 1.0 and sigma_0 == 0.0
         alpha_t_given_0 = alpha_t
-        sqr_sigma_t_given_0 = sigma_t ** 2
+        sqr_sigma_t_given_0 = 1 - alpha_t_given_0 ** 2
 
         x0_given_t = xt / alpha_t_given_0 - \
             (predicted_eps * sqr_sigma_t_given_0) / (alpha_t_given_0 * sigma_t)
