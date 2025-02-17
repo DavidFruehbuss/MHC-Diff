@@ -839,14 +839,16 @@ class Conditional_Diffusion_Model(nn.Module):
         device = protein_ids.device
 
         edge_index = edge_definition_model.get_edges(molecule_ids, protein_ids, molecule_positions, protein_positions)
-        edge_index.transpose(0, 1)
 
         node_positions = torch.cat((molecule_positions, protein_positions), dim=0)
         node_features = torch.cat((molecule_features, protein_features), dim=0)
+
+        # 1 for the molecule(ligand), 0 for the protein(pocket)
         entity_ids = torch.cat((torch.ones(molecule_positions.shape[0], device=device),
                                 torch.zeros(protein_positions.shape[0], device=device)), dim=0)
 
-        edge_attr = (entity_ids[edge_index[:, 0]] != entity_ids[edge_index[:, 1]]).unsqueeze(-1)
+        # the only edge feature is whether the nodes are from a different entity (True) or not (False)
+        edge_attr = (entity_ids[edge_index[0]] != entity_ids[edge_index[1]]).unsqueeze(-1)
 
         data = Data(
             x=node_features,
