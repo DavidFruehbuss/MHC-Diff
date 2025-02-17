@@ -3,9 +3,11 @@ from argparse import Namespace
 from pathlib import Path
 import yaml
 import os
+import sys
 import time
 import pickle
 import gzip
+import logging
 
 import os
 import sys
@@ -15,6 +17,8 @@ import pytorch_lightning as pl
 from torch_scatter import scatter_add
 
 if __name__ == "__main__":
+
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

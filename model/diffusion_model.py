@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import math
 from typing import List, Tuple, Optional
+import logging
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -16,6 +17,8 @@ from model.architecture import NN_Model
 from model.noise_schedule import Noise_Schedule
 from utils import create_new_pdb_hdf5
 from dataset_8k_xray import convert_amino_acid_to_3dssl
+
+_log = logging.getLogger(__name__)
 
 """
 This file implements the generative framework [diffusion model] for the model
@@ -626,7 +629,10 @@ class Conditional_Diffusion_Model(nn.Module):
         # Iterativly denoise stepwise for t = T,...,1; stepsize default is 1
         for s in reversed(range(0, max_T, self.sampling_stepsize)):
 
-            t = s + 1
+            t = s + self.sampling_stepsize
+
+            _log.debug(f"sample t is {t} of {max_T}")
+            _log.debug(f"sample s is {s} of {max_T}")
 
             # Save every 100th timestep
             # if s % 100 == 0 or s > 990:
