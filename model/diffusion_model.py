@@ -542,7 +542,7 @@ class Conditional_Diffusion_Model(nn.Module):
             data_dir,
             run_id,
             amino_acid_probability_model: Optional[nn.Module] = None,
-            energy_scale: Optional[float] = 1.0,
+            energy_scale: Optional[float] = 0.01,
         ):
         '''
         This function takes a molecule and a protein and return the most likely joint structure.
@@ -692,6 +692,8 @@ class Conditional_Diffusion_Model(nn.Module):
                             convert_amino_acid_to_3dssl(molecule_h),
                 )
 
+                _log.debug(f"got energies {energy.mean()} +/- {energy.std()}")
+
                 # add the extra term to guid the sampling
                 x_mol = xh_mol[:,:3]
 
@@ -719,6 +721,10 @@ class Conditional_Diffusion_Model(nn.Module):
                 xh_pro[:,:self.x_dim] = xh_pro[:,:self.x_dim] - scatter_mean(xh_pro[:,:self.x_dim], protein_pocket['idx'], dim=0)[protein_pocket['idx']]
             else:
                 dumy_variable = 0
+
+            if 'x' in molecule:
+                rmsd = self._get_rmsd(molecule['idx'], molecule['x'], xh_mol[:,:3], molecule['size'])
+                _log.debug(f"RMSD is {rmsd.mean()} +/- {rmsd.std()}")
 
             # Log sampling progress
             # error_mol = scatter_add(torch.sum((mol_target_0 - xh_mol[:,:3])**2, dim=-1), molecule['idx'], dim=0)
@@ -773,8 +779,11 @@ class Conditional_Diffusion_Model(nn.Module):
         mol_target += (protein_pocket_com_before - protein_pocket_com_after)[molecule['idx']]
 
         # Log sampling progress
-        error_mol = scatter_add(torch.sum((mol_target - xh_mol_final[:,:3])**2, dim=-1), molecule['idx'], dim=0)
-        rmse = torch.sqrt(error_mol / (3 * molecule['size']))
+        rmsd = self._get_rmsd(molecule['idx'], mol_target, xh_mol_final[:,:3], molecule['size'])
+        _log.debug(f"Final RMSD {rmsd.mean()} +/- {rmsd.std()}")
+
+        #error_mol = scatter_add(torch.sum((mol_target - xh_mol_final[:,:3])**2, dim=-1), molecule['idx'], dim=0)
+        #rmse = torch.sqrt(error_mol / (3 * molecule['size']))
         # print(f'Final RSME: {rmse.mean(0)}')
 
         sampled_structures = (xh_mol_final, xh_pro_final)
@@ -799,6 +808,14 @@ class Conditional_Diffusion_Model(nn.Module):
                 graph_name = molecule['graph_name'][i]
 
             create_new_pdb_hdf5(peptide_pos, peptide_idx, graph_name, run_id, data_dir, time_step=time_step, sample_id=i)
+
+    @staticmethod
+    def _get_rmsd(batch_index: torch.Tensor, x0: torch.Tensor, x1: torch.Tensor, size: torch.Tensor) -> torch.Tensor:
+
+        sqrd = scatter_add(torch.sum((x0 - x1)**2, dim=-1), batch_index, dim=0)
+        rmsd = torch.sqrt(sqrd / size)
+
+        return rmsd
 
     def _get_energy(
         self,
