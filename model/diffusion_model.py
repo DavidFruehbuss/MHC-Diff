@@ -1,3 +1,4 @@
+import os
 import torch
 import numpy as np
 import math
@@ -6,6 +7,7 @@ import logging
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import pandas
 
 import torch
 import torch.nn as nn
@@ -209,7 +211,7 @@ class Conditional_Diffusion_Model(nn.Module):
 
         # option for computing t = 0 representations
         t = torch.zeros((batch_size, 1), device=device) if t_is_0 else t
-            
+
         # noise schedule
         alpha_t = self.noise_schedule(t, 'alpha')
         sigma_t = self.noise_schedule(t, 'sigma')
@@ -327,7 +329,7 @@ class Conditional_Diffusion_Model(nn.Module):
         }
 
         return loss, info
-    
+
     def validation_loss(
             self, z_data, molecule, z_t_mol, epsilon_mol, epsilon_hat_mol,
             protein_pocket, z_t_pro, epsilon_pro, epsilon_hat_pro, 
@@ -671,7 +673,7 @@ class Conditional_Diffusion_Model(nn.Module):
             xh_mol[:,:3] = mean_mol_s[:,:3] + sigma_mol_s[molecule['idx']] * eps_mol_random[:,:3]
             xh_pro = xh_pro.detach().clone() # for safety (probally not necessary)
 
-            if amino_acid_probability_model is not None:
+            if amino_acid_probability_model is not None and t < 500:
 
                 molecule_xt.requires_grad_(True)
 
@@ -723,8 +725,10 @@ class Conditional_Diffusion_Model(nn.Module):
                 dumy_variable = 0
 
             if 'x' in molecule:
-                rmsd = self._get_rmsd(molecule['idx'], molecule['x'], xh_mol[:,:3], molecule['size'])
-                _log.debug(f"RMSD is {rmsd.mean()} +/- {rmsd.std()}")
+                rmsds = self._get_rmsd(molecule['idx'], molecule['x'], xh_mol[:,:3], molecule['size'])
+                _log.debug(f"RMSD is {rmsds.mean()} +/- {rmsds.std()}")
+
+                self._save_rmsds(run_id, s, rmsds, molecule['graph_name'])
 
             # Log sampling progress
             # error_mol = scatter_add(torch.sum((mol_target_0 - xh_mol[:,:3])**2, dim=-1), molecule['idx'], dim=0)
@@ -779,8 +783,9 @@ class Conditional_Diffusion_Model(nn.Module):
         mol_target += (protein_pocket_com_before - protein_pocket_com_after)[molecule['idx']]
 
         # Log sampling progress
-        rmsd = self._get_rmsd(molecule['idx'], mol_target, xh_mol_final[:,:3], molecule['size'])
-        _log.debug(f"Final RMSD {rmsd.mean()} +/- {rmsd.std()}")
+        rmsds = self._get_rmsd(molecule['idx'], mol_target, xh_mol_final[:,:3], molecule['size'])
+        _log.debug(f"Final RMSD {rmsds.mean()} +/- {rmsds.std()}")
+        self._save_rmsds(runs_id, 0, rmsds, molecule['graph_name'])
 
         #error_mol = scatter_add(torch.sum((mol_target - xh_mol_final[:,:3])**2, dim=-1), molecule['idx'], dim=0)
         #rmse = torch.sqrt(error_mol / (3 * molecule['size']))
@@ -791,6 +796,30 @@ class Conditional_Diffusion_Model(nn.Module):
         self.safe_pdbs(xh_mol_final, molecule, run_id, data_dir, time_step='F')
 
         return sampled_structures
+
+    @staticmethod
+    def _save_rmsds(run_id: str, time_step: int, rmsds: torch.Tensor, graph_names: List[str]):
+
+        sample_names = [f"{name}_{i}" for i, name in enumerate(graph_names)]
+
+        time_step_column_name = "time_step"
+
+        column_names = [time_step_column_name] + sample_names
+
+        path = f"{run_id}-rmsds.csv"
+
+        if os.path.isfile(path):
+            table = pandas.read_csv(path)
+        else:
+            table = pandas.DataFrame(columns=column_names)
+
+        row = {time_step_column_name: [time_step]}
+        for i, name in enumerate(sample_names):
+            row[name] = [rmsds[i].item()]
+
+        table = pandas.concat((table, pandas.DataFrame(row)), axis=0)
+
+        table.to_csv(path, index=False)
 
     def safe_pdbs(self, pos, molecule, run_id, data_dir, time_step):
 
