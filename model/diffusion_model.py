@@ -545,6 +545,7 @@ class Conditional_Diffusion_Model(nn.Module):
             run_id,
             amino_acid_probability_model: Optional[nn.Module] = None,
             energy_scale: Optional[float] = 0.01,
+            max_energy_timestep: Optional[int] = 600,
         ):
         '''
         This function takes a molecule and a protein and return the most likely joint structure.
@@ -673,7 +674,7 @@ class Conditional_Diffusion_Model(nn.Module):
             xh_mol[:,:3] = mean_mol_s[:,:3] + sigma_mol_s[molecule['idx']] * eps_mol_random[:,:3]
             xh_pro = xh_pro.detach().clone() # for safety (probally not necessary)
 
-            if amino_acid_probability_model is not None and t < 500:
+            if amino_acid_probability_model is not None and t < max_energy_timestep:
 
                 molecule_xt.requires_grad_(True)
 
