@@ -66,7 +66,7 @@ if __name__ == "__main__":
     test_dataset = lightning_model.test_dataset
 
     model_3dssl = None
-    if args.model_3dssl is not None:
+    if hasattr(args, 'model_3dssl'):
         model_3dssl = torch.load(args.model_3dssl, map_location=device)
         model_3dssl.eval()
 
