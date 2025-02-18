@@ -17,10 +17,11 @@ from torch_geometric.data import Data, Batch
 
 from model.architecture import NN_Model
 from model.noise_schedule import Noise_Schedule
-from utils import create_new_pdb_hdf5
+from utils import create_new_pdb_hdf5, assure_string
 from dataset_8k_xray import convert_amino_acid_to_3dssl
 
 _log = logging.getLogger(__name__)
+
 
 """
 This file implements the generative framework [diffusion model] for the model
@@ -786,7 +787,7 @@ class Conditional_Diffusion_Model(nn.Module):
         # Log sampling progress
         rmsds = self._get_rmsd(molecule['idx'], mol_target, xh_mol_final[:,:3], molecule['size'])
         _log.debug(f"Final RMSD {rmsds.mean()} +/- {rmsds.std()}")
-        self._save_rmsds(runs_id, 0, rmsds, molecule['graph_name'])
+        self._save_rmsds(run_id, 0, rmsds, molecule['graph_name'])
 
         #error_mol = scatter_add(torch.sum((mol_target - xh_mol_final[:,:3])**2, dim=-1), molecule['idx'], dim=0)
         #rmse = torch.sqrt(error_mol / (3 * molecule['size']))
@@ -801,7 +802,7 @@ class Conditional_Diffusion_Model(nn.Module):
     @staticmethod
     def _save_rmsds(run_id: str, time_step: int, rmsds: torch.Tensor, graph_names: List[str]):
 
-        sample_names = [f"{name}_{i}" for i, name in enumerate(graph_names)]
+        sample_names = [f"{assure_string(name)}_{i}" for i, name in enumerate(graph_names)]
 
         time_step_column_name = "time_step"
 
