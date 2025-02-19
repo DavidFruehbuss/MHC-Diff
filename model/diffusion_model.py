@@ -559,6 +559,21 @@ class Conditional_Diffusion_Model(nn.Module):
 
         molecule_h = molecule['h']
 
+        if 'x' in molecule and amino_acid_probability_model is not None:
+
+            truth_energy = self._get_energy(
+                        self.neural_net,
+                        amino_acid_probability_model,
+                        protein_pocket['idx'],
+                        molecule['idx'],
+                        protein_x0,
+                        molecule['x'],
+                        convert_amino_acid_to_3dssl(protein_h),
+                        convert_amino_acid_to_3dssl(molecule_h),
+            )
+
+            _log.debug(f"calculated energies for truth: {truth_energy.mean()} +/- {truth_energy.std()}")
+
         # replicate (molecule + protein_pocket) to have a batch of num_samples many replicates
         # do this step with Dataset function in lightning_modules
         device = molecule['x'].device
@@ -687,12 +702,6 @@ class Conditional_Diffusion_Model(nn.Module):
                             protein_pocket['idx'],
                             molecule['idx'],
                             protein_x0,
-                            #self._extrapolate_x0_from_xt(
-                            #    molecule_xt,
-                            #    epsilon_hat_mol[:, :3],
-                            #    alpha_t[molecule['idx']],
-                            #    sigma_t[molecule['idx']],
-                            #),
                             x_mol,
                             convert_amino_acid_to_3dssl(protein_h),
                             convert_amino_acid_to_3dssl(molecule_h),
@@ -816,7 +825,7 @@ class Conditional_Diffusion_Model(nn.Module):
         else:
             table = pandas.DataFrame(columns=column_names)
 
-        if time_step in table[time_step_column_name]:
+        if time_step in table[time_step_column_name].values:
             for i, name in enumerate(sample_names):
                 table.loc[table[time_step_column_name] == time_step, name] = rmsds[i].item()
         else:
