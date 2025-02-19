@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 
 from Bio.PDB import PDBParser, PDBIO
 from Bio.PDB.Chain import Chain
@@ -10,6 +11,17 @@ import os
 import pickle
 import h5py
 from io import StringIO
+
+
+_log = logging.getLogger(__name__)
+
+
+def assure_string(x):
+    if isinstance(x, bytes):
+        return x.decode('utf-8')
+
+    return x
+
 
 def create_new_pdb_hdf5(
         peptide, peptide_idx, graph_name, run_id, data_dir, time_step, sample_id
@@ -23,12 +35,16 @@ def create_new_pdb_hdf5(
 
     # Create a temporary file or use StringIO to make the string readable by parser
     pdb_fh = StringIO(pdb_string)
-    
+
+    graph_name = assure_string(graph_name)
+
     pdb_output_path = f'./results/structures/{run_id}/{graph_name}_{time_step}_{sample_id}.pdb'
 
     directory = os.path.dirname(pdb_output_path)
     if not os.path.exists(directory):
          os.makedirs(directory)
+
+    _log.debug(f"write pdb to {pdb_output_path}")
 
     write_updated_peptide_coords_pdb(peptide, peptide_idx, pdb_fh, pdb_output_path)
     

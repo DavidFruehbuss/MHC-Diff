@@ -545,7 +545,7 @@ class Conditional_Diffusion_Model(nn.Module):
             data_dir,
             run_id,
             amino_acid_probability_model: Optional[nn.Module] = None,
-            energy_scale: Optional[float] = 0.01,
+            energy_scale: Optional[float] = 1.0,
             max_energy_timestep: Optional[int] = 600,
         ):
         '''
@@ -677,7 +677,8 @@ class Conditional_Diffusion_Model(nn.Module):
 
             if amino_acid_probability_model is not None and t < max_energy_timestep:
 
-                molecule_xt.requires_grad_(True)
+                x_mol = xh_mol[:,:3]
+                x_mol.requires_grad_(True)
 
                 # derive statistic potential, using the model
                 energy = self._get_energy(
@@ -686,24 +687,24 @@ class Conditional_Diffusion_Model(nn.Module):
                             protein_pocket['idx'],
                             molecule['idx'],
                             protein_x0,
-                            self._extrapolate_x0_from_xt(
-                                molecule_xt,
-                                epsilon_hat_mol[:, :3],
-                                alpha_t[molecule['idx']],
-                                sigma_t[molecule['idx']],
-                            ),
+                            #self._extrapolate_x0_from_xt(
+                            #    molecule_xt,
+                            #    epsilon_hat_mol[:, :3],
+                            #    alpha_t[molecule['idx']],
+                            #    sigma_t[molecule['idx']],
+                            #),
+                            x_mol,
                             convert_amino_acid_to_3dssl(protein_h),
                             convert_amino_acid_to_3dssl(molecule_h),
                 )
 
                 _log.debug(f"got energies {energy.mean()} +/- {energy.std()}")
 
-                # add the extra term to guid the sampling
-                x_mol = xh_mol[:,:3]
+                # add the extra term to guide the sampling
 
-                g = torch.autograd.grad(outputs=energy.sum(), inputs=molecule_xt)
+                g = torch.autograd.grad(outputs=energy_scale * energy.sum(), inputs=x_mol)[0]
 
-                x_mol -= energy_scale * g[0]
+                x_mol -= sigma_mol_s[molecule['idx']] * g
                 xh_mol[:,:3]  = x_mol
 
             if sampling_without_noise == True:
@@ -815,11 +816,15 @@ class Conditional_Diffusion_Model(nn.Module):
         else:
             table = pandas.DataFrame(columns=column_names)
 
-        row = {time_step_column_name: [time_step]}
-        for i, name in enumerate(sample_names):
-            row[name] = [rmsds[i].item()]
+        if time_step in table[time_step_column_name]:
+            for i, name in enumerate(sample_names):
+                table.loc[table[time_step_column_name] == time_step, name] = rmsds[i].item()
+        else:
+            row = {time_step_column_name: [time_step]}
+            for i, name in enumerate(sample_names):
+                row[name] = [rmsds[i].item()]
 
-        table = pandas.concat((table, pandas.DataFrame(row)), axis=0)
+            table = pandas.concat((table, pandas.DataFrame(row)), axis=0)
 
         table.to_csv(path, index=False)
 
