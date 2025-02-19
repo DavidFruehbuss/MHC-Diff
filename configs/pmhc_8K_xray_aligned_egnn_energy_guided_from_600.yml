@@ -1,7 +1,7 @@
 # Logging Traing only
 logdir: 'pmhc_8K_xray_egnn'
 project: 'Structur_prediction_Experiments'
-run_name: 'pmhc_8K_xray_aligned_egnn_BS60'
+run_name: 'pmhc_8K_xray_aligned_egnn_BS60_energy_guided_from_600'
 entity: 'neuro-ai-scientist'
 
 # Training
@@ -32,7 +32,7 @@ generative_model_params:
   position_encoding: True
   position_encoding_dim: 10
   com_handling: 'peptide' # 'protein' 'both' 'peptide' 'no_COM'
-  sampling_stepsize: 10
+  sampling_stepsize: 1
   noise_scaling: null
   high_noise_training: False
 
@@ -62,11 +62,12 @@ network_params:
 # Eval
 checkpoint: 'checkpoints/fold_1/checkpoints/best-model-epoch=epoch=988.ckpt' 
 num_samples: 10
-sample_batch_size: 6 # 10
+sample_batch_size: 1 # 10
 sampling_without_noise: False
 sample_savepath: 'samples'
 
 model_3dssl: '3dssl_pandora_all_model_ssl.pt'
+max_energy_timestep: 600
 
 
 

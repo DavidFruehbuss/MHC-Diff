@@ -18,8 +18,6 @@ from torch_scatter import scatter_add
 
 if __name__ == "__main__":
 
-    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     # set working directory and import modules
@@ -40,6 +38,8 @@ if __name__ == "__main__":
             args_dict[key] = Namespace(**value)
         else:
             args_dict[key] = value
+
+    logging.basicConfig(filename=args.run_name + "-test.log", filemode='a', level=logging.DEBUG)
 
     num_samples = args.num_samples
     sample_batch_size = args.sample_batch_size
@@ -111,7 +111,7 @@ if __name__ == "__main__":
 
         xh_mol_final, xh_pro_final = lightning_model.model.sample_structure(
                                         num_samples, molecule, protein_pocket, args.sampling_without_noise, args.data_dir, args.run_name,
-                                        amino_acid_probability_model=model_3dssl)
+                                        amino_acid_probability_model=model_3dssl, max_energy_timestep=args.max_energy_timestep)
 
         print(f'After sampling time {time.time() - start_time}')
 

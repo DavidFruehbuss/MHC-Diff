@@ -697,14 +697,14 @@ class Conditional_Diffusion_Model(nn.Module):
 
                 # derive statistic potential, using the model
                 energy = self._get_energy(
-                            self.neural_net,
-                            amino_acid_probability_model,
-                            protein_pocket['idx'],
-                            molecule['idx'],
-                            protein_x0,
-                            x_mol,
-                            convert_amino_acid_to_3dssl(protein_h),
-                            convert_amino_acid_to_3dssl(molecule_h),
+                    self.neural_net,
+                    amino_acid_probability_model,
+                    protein_pocket['idx'],
+                    molecule['idx'],
+                    protein_x0,
+                    x_mol,
+                    convert_amino_acid_to_3dssl(protein_h),
+                    convert_amino_acid_to_3dssl(molecule_h),
                 )
 
                 _log.debug(f"got energies {energy.mean()} +/- {energy.std()}")
@@ -715,6 +715,8 @@ class Conditional_Diffusion_Model(nn.Module):
 
                 x_mol -= sigma_mol_s[molecule['idx']] * g
                 xh_mol[:,:3]  = x_mol
+
+                self._save_data(run_id, "energy", s, energy, molecule['graph_name'])
 
             if sampling_without_noise == True:
                 xh_mol = mean_mol_s.clone().detach()
@@ -740,7 +742,7 @@ class Conditional_Diffusion_Model(nn.Module):
                 rmsds = self._get_rmsd(molecule['idx'], molecule['x'], xh_mol[:,:3], molecule['size'])
                 _log.debug(f"RMSD is {rmsds.mean()} +/- {rmsds.std()}")
 
-                self._save_rmsds(run_id, s, rmsds, molecule['graph_name'])
+                self._save_data(run_id, "rmsd", s, rmsds, molecule['graph_name'])
 
             # Log sampling progress
             # error_mol = scatter_add(torch.sum((mol_target_0 - xh_mol[:,:3])**2, dim=-1), molecule['idx'], dim=0)
@@ -797,7 +799,7 @@ class Conditional_Diffusion_Model(nn.Module):
         # Log sampling progress
         rmsds = self._get_rmsd(molecule['idx'], mol_target, xh_mol_final[:,:3], molecule['size'])
         _log.debug(f"Final RMSD {rmsds.mean()} +/- {rmsds.std()}")
-        self._save_rmsds(run_id, 0, rmsds, molecule['graph_name'])
+        self._save_data(run_id, "rmsd", 0, rmsds, molecule['graph_name'])
 
         #error_mol = scatter_add(torch.sum((mol_target - xh_mol_final[:,:3])**2, dim=-1), molecule['idx'], dim=0)
         #rmse = torch.sqrt(error_mol / (3 * molecule['size']))
@@ -810,7 +812,7 @@ class Conditional_Diffusion_Model(nn.Module):
         return sampled_structures
 
     @staticmethod
-    def _save_rmsds(run_id: str, time_step: int, rmsds: torch.Tensor, graph_names: List[str]):
+    def _save_data(run_id: str, data_name: str, time_step: int, rmsds: torch.Tensor, graph_names: List[str]):
 
         sample_names = [f"{assure_string(name)}_{i}" for i, name in enumerate(graph_names)]
 
@@ -818,7 +820,7 @@ class Conditional_Diffusion_Model(nn.Module):
 
         column_names = [time_step_column_name] + sample_names
 
-        path = f"{run_id}-rmsds.csv"
+        path = f"{run_id}-{data_name}.csv"
 
         if os.path.isfile(path):
             table = pandas.read_csv(path)
@@ -889,8 +891,11 @@ class Conditional_Diffusion_Model(nn.Module):
         # [M, 23] (one-hot)
         molecule_targets = F.one_hot(molecule_amino_acids, num_classes=23)
 
-        # [M]
+        # one energy value per residue (C-alpha)
         energy = -(torch.nn.functional.log_softmax(molecule_probabilities, dim=-1) * molecule_targets).sum(dim=-1)
+
+        # one energy value per graph
+        energy = scatter_add(energy, molecule_index, dim=0)
 
         return energy
 
