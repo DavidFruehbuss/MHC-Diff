@@ -66,7 +66,7 @@ sample_batch_size: 1 # 10
 sampling_without_noise: False
 sample_savepath: 'samples'
 
-model_3dssl: '3dssl_pandora_all_model_ssl.pt'
+model_3dssl: 'xray_model_ssl.pt'
 max_energy_timestep: 600
 
 
