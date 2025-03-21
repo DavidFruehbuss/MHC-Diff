@@ -103,7 +103,7 @@ if __name__ == "__main__":
 
         print(f'Prior to sampling time {time.time() - start_time}')
 
-        xh_mol_final, xh_pro_final = lightning_model.model.sample_structure(num_samples, molecule, protein_pocket, args.sampling_without_noise, args.data_dir, args.run_name)
+        xh_mol_final, xh_pro_final, _ = lightning_model.model.sample_structure(num_samples, molecule, protein_pocket, args.sampling_without_noise, args.data_dir, args.run_name)
 
         print(f'After sampling time {time.time() - start_time}')
 

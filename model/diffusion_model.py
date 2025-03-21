@@ -76,6 +76,7 @@ class Conditional_Diffusion_Model(nn.Module):
         self,
         neural_net: nn.Module,
         features_fixed: bool,
+        confidence_score: bool,
         timesteps: int,
         position_encoding: bool,
         com_handling: str,
@@ -130,6 +131,7 @@ class Conditional_Diffusion_Model(nn.Module):
             self.noise_scaling = noise_scaling
         self.high_noise_training = high_noise_training
 
+        self.confidence_score = confidence_score
         
     def forward(self, z_data):
 
@@ -144,14 +146,14 @@ class Conditional_Diffusion_Model(nn.Module):
         z_t_mol, z_t_pro, eps_x_mol, epsilon_pro, t = self.noise_process(z_data)
 
         # use neural network to predict noise
-        epsilon_hat_mol, epsilon_hat_pro = self.neural_net(z_t_mol, z_t_pro, t, molecule['idx'], protein_pocket['idx'], molecule_pos)
+        epsilon_hat_mol, epsilon_hat_pro, c_s = self.neural_net(z_t_mol, z_t_pro, t, molecule['idx'], protein_pocket['idx'], molecule_pos)
 
 
         if self.training:
 
             loss, info = self.train_loss(molecule, z_t_mol, eps_x_mol, 
                                          epsilon_hat_mol,protein_pocket, 
-                                         z_t_pro, epsilon_pro, epsilon_hat_pro, t)
+                                         z_t_pro, epsilon_pro, epsilon_hat_pro, t, c_s)
 
         else: 
 
@@ -270,7 +272,7 @@ class Conditional_Diffusion_Model(nn.Module):
     def train_loss(
             self, molecule, z_t_mol, epsilon_mol, epsilon_hat_mol,
             protein_pocket, z_t_pro, epsilon_pro, epsilon_hat_pro, 
-            t,
+            t, c_s,
     ):
         # compute the sum squared error loss per graph # TODO: modified to not take the h_dims
         error_mol = scatter_add(torch.sum((epsilon_mol[:,:3] - epsilon_hat_mol[:,:3])**2, dim=-1), molecule['idx'], dim=0)
@@ -310,13 +312,29 @@ class Conditional_Diffusion_Model(nn.Module):
 
         loss = loss_t + loss_0 + kl_prior
 
+        if self.confidence_score == True:
+
+            c_s_peptide = scatter_add(c_s, molecule['idx'], dim=0).squeeze(1) / molecule['size']
+
+            # confidence weighted loss
+            loss_with_conf = 1/(c_s_peptide)**2 * loss + torch.log(c_s_peptide**2)
+        else:
+            c_s_peptide = torch.zeros_like(loss)
+            loss_with_conf = torch.zeros_like(loss)
+            
+
         info = {
             'loss_t': loss_t.mean(0),
             'loss_0': loss_0.mean(0),
             'error_mol': error_mol.mean(0),
             'loss_x_mol_t0': loss_x_mol_t0.mean(0),
             'kl_prior': kl_prior.mean(0),
+            'confidence': c_s_peptide.mean(0),
+            'loss_with_conf': loss_with_conf.mean(0)
         }
+
+        if self.confidence_score == True:
+            return loss_with_conf, info
 
         return loss, info
     
@@ -354,7 +372,7 @@ class Conditional_Diffusion_Model(nn.Module):
         z_0_mol, z_0_pro, epsilon_0_mol, epsilon_0_pro, t_0 = self.noise_process(z_data, t_is_0 = True)
 
         # use neural network to predict noise for t = 0
-        epsilon_hat_0_mol, epsilon_hat_0_pro = self.neural_net(z_0_mol, z_0_pro, t_0, molecule['idx'], protein_pocket['idx'], molecule_pos)
+        epsilon_hat_0_mol, epsilon_hat_0_pro, _ = self.neural_net(z_0_mol, z_0_pro, t_0, molecule['idx'], protein_pocket['idx'], molecule_pos)
 
         loss_x_mol_t0, loss_x_protein_t0, loss_h_t0 = self.loss_t0(
             molecule, z_0_mol, epsilon_0_mol, epsilon_hat_0_mol,
@@ -606,6 +624,10 @@ class Conditional_Diffusion_Model(nn.Module):
 
         max_T = self.T
 
+        # Only for confidence testing
+        if self.confidence_score == True:
+            confidence = []
+
         # Iterativly denoise stepwise for t = T,...,1; stepsize default is 1
         for s in reversed(range(0, max_T, self.sampling_stepsize)):
 
@@ -630,7 +652,12 @@ class Conditional_Diffusion_Model(nn.Module):
             sigma2_t_given_s = sigma_t_given_s**2
 
             # use neural network to predict noise
-            epsilon_hat_mol, _ = self.neural_net(xh_mol, xh_pro, t_array_norm, molecule['idx'], protein_pocket['idx'], molecule_pos)
+            epsilon_hat_mol, _, c_s = self.neural_net(xh_mol, xh_pro, t_array_norm, molecule['idx'], protein_pocket['idx'], molecule_pos)
+
+            # Only for confidence testing
+            if self.confidence_score == True:
+                C_S = scatter_add(c_s, molecule['idx'], dim=0).squeeze(1) / molecule['size']
+                confidence += [C_S]
 
             # compute p(z_s|z_t) using epsilon and alpha_s_given_t, sigma_s_given_t to predict mean and std of z_s
             mean_mol_s = xh_mol / alpha_t_given_s[molecule['idx']] - (sigma2_t_given_s / alpha_t_given_s / sigma_t)[molecule['idx']] * epsilon_hat_mol
@@ -675,7 +702,7 @@ class Conditional_Diffusion_Model(nn.Module):
         sigma_0 = self.noise_schedule(t_0_array_norm, 'sigma')
 
         # use neural network to predict noise
-        epsilon_hat_mol_0, _ = self.neural_net(xh_mol, xh_pro, t_0_array_norm, molecule['idx'], protein_pocket['idx'], molecule_pos)
+        epsilon_hat_mol_0, _, _ = self.neural_net(xh_mol, xh_pro, t_0_array_norm, molecule['idx'], protein_pocket['idx'], molecule_pos)
 
         # compute p(x|z_0) using epsilon and alpha_0, sigma_0 to predict mean and std of x
         mean_mol_final = 1. / alpha_0[molecule['idx']] * (xh_mol - sigma_0[molecule['idx']] * epsilon_hat_mol_0)
@@ -721,15 +748,18 @@ class Conditional_Diffusion_Model(nn.Module):
         mol_target += (protein_pocket_com_before - protein_pocket_com_after)[molecule['idx']]
 
         # Log sampling progress
-        error_mol = scatter_add(torch.sum((mol_target - xh_mol_final[:,:3])**2, dim=-1), molecule['idx'], dim=0)
-        rmse = torch.sqrt(error_mol / (3 * molecule['size']))
+        # error_mol = scatter_add(torch.sum((mol_target - xh_mol_final[:,:3])**2, dim=-1), molecule['idx'], dim=0)
+        # rmse = torch.sqrt(error_mol / (molecule['size']))
         # print(f'Final RSME: {rmse.mean(0)}')
 
-        sampled_structures = (xh_mol_final, xh_pro_final)
+        sampled_structures = (xh_mol_final, xh_pro_final, c_s)
 
         self.safe_pdbs(xh_mol_final, molecule, run_id, data_dir, time_step='F')
-        
 
+        # Only for confidence testing
+        if self.confidence_score == True:
+            print(C_S)  
+        
         return sampled_structures
     
     def safe_pdbs(self, pos, molecule, run_id, data_dir, time_step):

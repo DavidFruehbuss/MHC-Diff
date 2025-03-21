@@ -7,6 +7,7 @@ from torch_geometric.data import Data, Batch
 
 from model.egnn import EGNN, GNN
 from model.positional_encoding import sin_pE
+from model.confidence_score import Confidence_Score
 
 """
 This file sets up the neural network for the generative framework.
@@ -18,6 +19,7 @@ class NN_Model(nn.Module):
             self,
             architecture: str,
             features_fixed: bool,
+            confidence_score: bool,
             position_encoding: bool,
             position_encoding_dim: int,
             network_params,
@@ -102,6 +104,10 @@ class NN_Model(nn.Module):
 
             if self.conditioned_on_time:
                 self.joint_dim += 1
+
+            self.confidence_score = confidence_score
+            if confidence_score:
+                self.confidence_scores = Confidence_Score(3 + self.hidden_dim)
 
             if architecture == 'egnn':
 
@@ -193,7 +199,7 @@ class NN_Model(nn.Module):
                 protein_pocket_fixed = torch.cat((torch.ones_like(molecule_idx), torch.zeros_like(protein_pocket_idx))).unsqueeze(1)
 
                 # neural net forward pass
-                h_new, x_new = self.egnn(h_joint, x_joint, edges,
+                h_new, x_new, h_last_layer = self.egnn(h_joint, x_joint, edges,
                                             update_coords_mask=protein_pocket_fixed,
                                             batch_mask=idx_joint, edge_attr=edge_types)
                 
@@ -213,6 +219,14 @@ class NN_Model(nn.Module):
 
         else:
             raise Exception(f"Wrong architecture {self.architecture}")
+
+        # TODO: confidence calculation on peptide nodes
+        if self.confidence_score:
+            c_s_input = torch.cat((displacement_vec[:len(molecule_idx)], h_last_layer[:len(molecule_idx)]), dim=1)
+            c_s = self.confidence_scores(c_s_input, molecule_idx)
+        else:
+            c_s = 0
+
         
         # remove time dim
         if self.conditioned_on_time:
@@ -236,7 +250,7 @@ class NN_Model(nn.Module):
         epsilon_hat_mol = torch.cat((displacement_vec[:len(molecule_idx)], h_new_mol), dim=1)
         epsilon_hat_pro = torch.cat((displacement_vec[len(molecule_idx):], h_new_pro), dim=1)
 
-        return epsilon_hat_mol, epsilon_hat_pro
+        return epsilon_hat_mol, epsilon_hat_pro, c_s
     
     def get_edges(self, batch_mask_ligand, batch_mask_pocket, x_ligand, x_pocket): 
         '''

@@ -33,7 +33,7 @@ class GCL(nn.Module):
                 nn.Sigmoid())
 
     def edge_model(self, source, target, edge_attr, edge_mask):
-        if edge_attr is None:  # Unused.
+        if edge_attr is None:
             out = torch.cat([source, target], dim=1)
         else:
             out = torch.cat([source, target, edge_attr], dim=1)
@@ -166,7 +166,7 @@ class EquivariantBlock(nn.Module):
 
     def forward(self, h, x, edge_index, node_mask=None, edge_mask=None,
                 edge_attr=None, update_coords_mask=None, batch_mask=None):
-        # Edit Emiel: Remove velocity as input
+
         distances, coord_diff = coord2diff(x, edge_index, self.norm_constant)
         if self.reflection_equiv:
             coord_cross = None
@@ -242,11 +242,14 @@ class EGNN(nn.Module):
                 edge_attr=edge_feat, update_coords_mask=update_coords_mask,
                 batch_mask=batch_mask)
 
+        # TODO: For adding confidence heads
+        h_last_layer = h
+
         # Important, the bias of the last linear might be non-zero
-        h = self.embedding_out(h)
+        h_out = self.embedding_out(h)
         if node_mask is not None:
-            h = h * node_mask
-        return h, x
+            h_out = h_out * node_mask
+        return h_out, x, h_last_layer
 
 
 class GNN(nn.Module):

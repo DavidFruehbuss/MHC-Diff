@@ -71,6 +71,7 @@ class Structure_Prediction_Model(pl.LightningModule):
             # model parameters
             architecture,
             task_params.features_fixed,
+            task_params.confidence_score,
             generative_model_params.position_encoding,
             generative_model_params.position_encoding_dim,
             network_params,
@@ -83,6 +84,7 @@ class Structure_Prediction_Model(pl.LightningModule):
             # framework parameters
             self.neural_net,
             task_params.features_fixed,
+            task_params.confidence_score,
             generative_model_params.timesteps,
             generative_model_params.position_encoding,
             generative_model_params.com_handling,
