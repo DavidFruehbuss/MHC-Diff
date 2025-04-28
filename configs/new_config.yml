@@ -1,7 +1,7 @@
 # Logging Traing only
 logdir: "./checkpoints/fold_1/"
 project: 'Structur_prediction_Experiments'
-run_name: 'pmhc_8K_xray_aligned_egnn_1'
+run_name: 'pmhc_8K_xray_aligned_egnn_1_test_2'
 entity: 'neuro-ai-scientist'
 
 # Training
@@ -16,6 +16,7 @@ num_workers: 18
 # Task
 task_params:
   features_fixed: True
+  confidence_score: False
 
 # Dataset
 data_dir: "/gpfs/home4/dfruhbus/MHC-Diff/data/pmhc_xray_8K_aligned/folds/fold_1/"
@@ -31,7 +32,7 @@ generative_model_params:
   position_encoding: True
   position_encoding_dim: 10
   com_handling: 'peptide' # 'protein' 'both' 'peptide' 'no_COM'
-  sampling_stepsize: 1 
+  sampling_stepsize: 1
   noise_scaling: null
   high_noise_training: False
 
@@ -63,7 +64,7 @@ checkpoint: './checkpoints/fold_1/checkpoints/best-model-epoch=epoch=988.ckpt'
 num_samples: 10
 sample_batch_size: 10
 sampling_without_noise: False
-sample_savepath: './results/fold_1/samples'
+sample_savepath: './results/rmse_values/fold_1/samples_test'
 
 
 

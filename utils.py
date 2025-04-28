@@ -9,12 +9,14 @@ import glob
 import os
 import pickle
 import h5py
+import numpy as np
 from io import StringIO
+from typing import Sequence
+
 
 def create_new_pdb_hdf5(
         peptide, peptide_idx, graph_name, run_id, data_dir, time_step, sample_id
 ):
-    # TODO: modify this to be adaptable
     hdf5_file = h5py.File(f'{data_dir}/test.hdf5', 'r')
         
     pdb_names = hdf5_file['pdb_names'][:]
@@ -31,6 +33,49 @@ def create_new_pdb_hdf5(
          os.makedirs(directory)
 
     write_updated_peptide_coords_pdb(peptide, peptide_idx, pdb_fh, pdb_output_path)
+
+def create_new_pdb_hdf5_100k(
+    peptide: np.ndarray,
+    peptide_idx: Sequence[int],
+    graph_name: str,
+    run_id: str,
+    data_dir: str,
+    time_step: int,
+    sample_id: int
+):
+    """
+    Saves a new PDB for non-BA entries only.
+    Loads the original PDB string via group[()] decoding,
+    then overwrites the P-chain CA coords with `peptide`.
+    """
+    # 1) Only handle non-BA
+    if graph_name.startswith("BA"):
+        return
+
+    # 2) Read the PDB string from the group
+    hdf5_path = Path(data_dir) / '100k_test.hdf5'
+    with h5py.File(hdf5_path, 'r') as f5:
+        if graph_name not in f5:
+            raise KeyError(f"{graph_name} not found in {hdf5_path}")
+        group = f5[graph_name]
+        pdb_string = group[()].decode('utf-8')
+
+    # 3) Prepare in-memory file for parser
+    pdb_fh = StringIO(pdb_string)
+
+    # 4) Build output path
+    out_dir = Path('results') / 'structures' / run_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    pdb_output_path = out_dir / f"{graph_name}_{time_step}_{sample_id}.pdb"
+
+    # 5) Write updated PDB: replaces only P-chain CA coords
+    write_updated_peptide_coords_pdb(
+        peptide=peptide,
+        peptide_idx=peptide_idx,
+        pdb_reference_path_or_stream=pdb_fh,
+        pdb_output_path=str(pdb_output_path),
+        atom_level=False
+    )
     
 def write_updated_peptide_coords_pdb(
     peptide, peptide_idx, pdb_reference_path_or_stream, pdb_output_path, atom_level=False

@@ -1,30 +1,30 @@
 # Logging Traing only
-logdir: "./Experiments/Structure_prediction/Logs_Experiments/fold_1/"
+logdir: "./checkpoints/100k/"
 project: 'Structur_prediction_Experiments'
-run_name: 'pmhc_8K_xray_aligned_egnn_1'
+run_name: 'pmhc_100k'
 entity: 'neuro-ai-scientist'
 
 # Training
-num_epochs: 1000
+num_epochs: 1000 # TODO: early stopping?? -> prevent overfitting
 device: 'cuda'
 gpus: 1
 
-batch_size: 32 # 16, 64
+batch_size: 32
 lr: 5.0e-4
 num_workers: 18
 
 # Task
 task_params:
-  protein_pocket_fixed: True
   features_fixed: True
+  confidence_score: False
 
 # Dataset
-data_dir: "/gpfs/home4/dfruhbus/ECGDM/Data/Peptide_data/pmhc_xray_8K_aligned/folds/fold_1/"
-dataset: 'pmhc_8K_xray'
+data_dir: "/gpfs/home4/dfruhbus/MHC-Diff/data/pmhc_xray_100K/"
+dataset: 'pmhc_100K_xray'
 dataset_params:
-  num_atoms: 20 # obtained from constant file
+  num_atoms: 20
   num_residues: 20
-  norm_values: [1,1] # for moad [1,4]
+  norm_values: [1,1]
 
 generative_model: 'conditional_diffusion'
 generative_model_params:
@@ -32,7 +32,7 @@ generative_model_params:
   position_encoding: True
   position_encoding_dim: 10
   com_handling: 'peptide' # 'protein' 'both' 'peptide' 'no_COM'
-  sampling_stepsize: 50
+  sampling_stepsize: 1
   noise_scaling: null
   high_noise_training: False
 
@@ -60,11 +60,11 @@ network_params:
   reflection_equivariant: False
 
 # Eval
-checkpoint: './Experiments/Structure_prediction/Logs_Experiments/fold_1/checkpoints/best-model-epoch=epoch=988.ckpt' 
+checkpoint: './checkpoints/100k/checkpoints/best-model-epoch=epoch=999.ckpt' 
 num_samples: 10
-sample_batch_size: 10 # 10
+sample_batch_size: 10
 sampling_without_noise: False
-sample_savepath: './Experiments/Structure_prediction/Logs_Experiments/fold_1_fast50/samples'
+sample_savepath: './results/rmse_values/100k/samples_test_structures'
 
 
 

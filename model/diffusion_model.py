@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import math
+import os
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -10,7 +11,7 @@ import torch.nn.functional as F
 from torch_scatter import scatter_add, scatter_mean
 
 from model.noise_schedule import Noise_Schedule
-from utils import create_new_pdb_hdf5
+from utils import create_new_pdb_hdf5, create_new_pdb_hdf5_100k
 
 """
 This file implements the generative framework [diffusion model] for the model
@@ -777,4 +778,11 @@ class Conditional_Diffusion_Model(nn.Module):
             else:
                 graph_name = molecule['graph_name'][i]
 
-            create_new_pdb_hdf5(peptide_pos, peptide_idx, graph_name, run_id, data_dir, time_step=time_step, sample_id=i)
+            if '100K' in data_dir:
+
+                create_new_pdb_hdf5_100k(peptide_pos, peptide_idx, graph_name, run_id, data_dir, time_step=time_step, sample_id=i)
+
+            else:
+
+                create_new_pdb_hdf5(peptide_pos, peptide_idx, graph_name, run_id, data_dir, time_step=time_step, sample_id=i)
+

@@ -130,6 +130,7 @@ if __name__ == "__main__":
 
         saved_samples['rmse'] += [rmse[j*num_samples:(j+1)*num_samples] for j in range(sample_batch_size)]
         print(len(saved_samples['rmse']), rmse.shape)
+        # print(f'RMSE: {[rmse[j*num_samples:(j+1)*num_samples] for j in range(sample_batch_size)]}')
         saved_samples['rmse_mean'] += [rmse_sample_mean[j] for j in range(sample_batch_size)]
         saved_samples['rmse_best'] += [rmse_sample_best[j] for j in range(sample_batch_size)]
 

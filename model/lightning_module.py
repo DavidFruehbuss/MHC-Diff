@@ -7,6 +7,7 @@ FLOAT_TYPE = torch.float32
 INT_TYPE = torch.int64
 
 from dataset_8k_xray import PDB_Dataset
+from dataset_100k_xray import PDB_Dataset_Mixed
 
 from model.diffusion_model import Conditional_Diffusion_Model
 from model.architecture import NN_Model
@@ -106,11 +107,21 @@ class Structure_Prediction_Model(pl.LightningModule):
 
     def setup(self, stage):
 
-        if stage == 'fit':
-            self.train_dataset = PDB_Dataset(self.data_dir, 'train')
-            self.val_dataset = PDB_Dataset(self.data_dir, 'valid')
-        elif stage == 'test':
-            self.test_dataset = PDB_Dataset(self.data_dir, 'test')
+        if self.dataset == 'pmhc_8K_xray':
+
+            if stage == 'fit':
+                self.train_dataset = PDB_Dataset(self.data_dir, 'train')
+                self.val_dataset = PDB_Dataset(self.data_dir, 'valid')
+            elif stage == 'test':
+                self.test_dataset = PDB_Dataset(self.data_dir, 'test')
+
+        elif self.dataset == 'pmhc_100K_xray':
+
+            if stage == 'fit':
+                self.train_dataset = PDB_Dataset_Mixed(self.data_dir, '100k_train')
+                self.val_dataset = PDB_Dataset_Mixed(self.data_dir, '100k_valid')
+            elif stage == 'test':
+                self.test_dataset = PDB_Dataset_Mixed(self.data_dir, '100k_test')
 
     def train_dataloader(self):
         # Need to pick a dataloader (geometric or normal)

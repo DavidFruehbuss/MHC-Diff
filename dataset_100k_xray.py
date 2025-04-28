@@ -1,6 +1,7 @@
 import os
 import h5py
 import torch
+import numpy as np
 from torch.utils.data import Dataset
 from Bio import PDB
 from typing import Dict
@@ -46,23 +47,37 @@ class PDB_Dataset_Mixed(Dataset):
             group = f5[graph_name]
 
             if graph_name.startswith('BA'):
-                # BA entries: peptide/protein aatype and coordinates
-                peptide_seq = decode_numeric_sequence(group['peptide']['aatype'][:])
-                protein_seq = decode_numeric_sequence(group['protein']['aatype'][:])
+                # Load CA atom positions from atom14_gt_positions
+                try:
+                    peptide_aatype = group['peptide']['aatype'][:]
+                    protein_aatype = group['protein']['aatype'][:]
 
-                peptide_coords = torch.tensor(group['peptide']['coords'][:], dtype=torch.float32)
-                protein_coords = torch.tensor(group['protein']['coords'][:], dtype=torch.float32)
+                    # Decode and filter valid CA positions
+                    peptide_coords = torch.tensor(group['peptide']['atom14_gt_positions'][:, 1, :], dtype=torch.float32)
+                    protein_coords = torch.tensor(group['protein']['atom14_gt_positions'][:, 1, :], dtype=torch.float32)
+
+                    peptide_seq = decode_numeric_sequence(peptide_aatype)
+                    protein_seq = decode_numeric_sequence(protein_aatype)
+
+                except KeyError as e:
+                    print(f"Error processing BA entry {graph_name}: {e}")
+                    return data  # Skip this entry if there is a KeyError
 
             else:
                 # Standard PDB string entries
-                pdb_string = group[()].decode('utf-8')
-                structure = self.parse_pdb_structure(pdb_string)
+                try:
+                    pdb_string = group[()].decode('utf-8')
+                    structure = self.parse_pdb_structure(pdb_string)
 
-                peptide_chain = structure[0]['P']
-                protein_chain = structure[0]['M']
+                    peptide_chain = structure[0]['P']
+                    protein_chain = structure[0]['M']
 
-                peptide_coords, peptide_seq = self.extract_ca_coords_and_sequence(peptide_chain)
-                protein_coords, protein_seq = self.extract_ca_coords_and_sequence(protein_chain, max_residues=178)
+                    peptide_coords, peptide_seq = self.extract_ca_coords_and_sequence(peptide_chain)
+                    protein_coords, protein_seq = self.extract_ca_coords_and_sequence(protein_chain, max_residues=178)
+
+                except KeyError as e:
+                    print(f"Error processing PDB entry {graph_name}: {e}")
+                    return data  # Skip this entry if there is a KeyError
 
             # One-hot encoding
             peptide_onehot = one_hot_encode_sequence(peptide_seq)
@@ -104,7 +119,7 @@ class PDB_Dataset_Mixed(Dataset):
                 sequence.append(PDB.Polypeptide.three_to_one(residue.resname))
             else:
                 print(f"Warning: Missing CA atom for residue {residue.resname} in chain {chain.id}")
-        coords_tensor = torch.tensor(ca_coords, dtype=torch.float32)
+        coords_tensor = torch.tensor(np.array(ca_coords), dtype=torch.float32)
         return coords_tensor, ''.join(sequence)
 
     @staticmethod
