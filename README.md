@@ -43,3 +43,127 @@ To set up the environment, please follow the instructions carefully. **Ensure th
    pip install prody
    pip install pandas
    ```
+
+## 📁 Configuration
+
+All training and inference runs are controlled via a single YAML config file, e.g.:
+
+```
+configs/new_config.yml
+```
+
+The key parameters are grouped as follows:
+
+### 🔧 General Training Parameters
+
+| Parameter     | Description                               |
+| ------------- | ----------------------------------------- |
+| `logdir`      | Output directory for logs and checkpoints |
+| `project`     | Project name (e.g. for Weights & Biases)  |
+| `run_name`    | Run identifier                            |
+| `entity`      | WandB user or team                        |
+| `num_epochs`  | Max number of training epochs             |
+| `device`      | Device to train on (e.g. `cuda`)          |
+| `gpus`        | Number of GPUs                            |
+| `batch_size`  | Training batch size                       |
+| `lr`          | Learning rate                             |
+| `num_workers` | Data loading workers                      |
+
+---
+
+### 🧪 Task Configuration
+
+| Parameter                      | Description                                        |
+| ------------------------------ | -------------------------------------------------- |
+| `task_params.features_fixed`   | Whether node features are fixed (True = fixed)     |
+| `task_params.confidence_score` | Whether to compute a confidence score (False = no) |
+
+---
+
+### 📚 Dataset Configuration
+
+| Parameter                     | Description                       |
+| ----------------------------- | --------------------------------- |
+| `data_dir`                    | Path to training/validation data  |
+| `dataset`                     | Dataset identifier                |
+| `dataset_params.num_atoms`    | Max number of atoms per structure |
+| `dataset_params.num_residues` | Max number of residues            |
+| `dataset_params.norm_values`  | Feature normalization factors     |
+
+---
+
+### 🌀 Generative Model Parameters
+
+| Parameter                                       | Description                                               |
+| ----------------------------------------------- | --------------------------------------------------------- |
+| `generative_model`                              | Type of model (e.g. `conditional_diffusion`)              |
+| `generative_model_params.timesteps`             | Number of diffusion steps                                 |
+| `generative_model_params.position_encoding`     | Use positional encoding                                   |
+| `generative_model_params.position_encoding_dim` | Dimensionality of PE                                      |
+| `generative_model_params.com_handling`          | How to handle center-of-mass (`peptide`, `protein`, etc.) |
+| `generative_model_params.sampling_stepsize`     | Step size for reverse sampling                            |
+| `generative_model_params.noise_scaling`         | Optional custom noise schedule                            |
+| `generative_model_params.high_noise_training`   | Enable training with more noise                           |
+
+---
+
+### 🧠 Architecture Parameters
+
+| Parameter                                                 | Description                                       |
+| --------------------------------------------------------- | ------------------------------------------------- |
+| `architecture`                                            | Model type (e.g. `egnn`)                          |
+| `network_params.conditioned_on_time`                      | Whether to use time embedding                     |
+| `network_params.joint_dim`                                | Joint latent dim for ligand + protein             |
+| `network_params.hidden_dim`                               | Hidden layer dim                                  |
+| `network_params.num_layers`                               | Number of layers                                  |
+| `network_params.edge_embedding_dim`                       | Dim of edge features                              |
+| `network_params.edge_cutoff_ligand`                       | Cutoff for ligand-ligand edges                    |
+| `network_params.edge_cutoff_pocket`                       | Cutoff for pocket-pocket edges                    |
+| `network_params.edge_cutoff_interaction`                  | Cutoff for ligand-pocket edges                    |
+| `network_params.attention`, `tanh`, `sin_embedding`, etc. | EGNN-specific flags                               |
+| `network_params.aggregation_method`                       | Method for node aggregation (`sum`, `mean`, etc.) |
+| `network_params.reflection_equivariant`                   | Toggle reflection equivariance                    |
+
+---
+
+### 📈 Evaluation and Sampling
+
+| Parameter                | Description                               |
+| ------------------------ | ----------------------------------------- |
+| `checkpoint`             | Path to trained model checkpoint          |
+| `num_samples`            | Number of samples per input               |
+| `sample_batch_size`      | Batch size during sampling                |
+| `sampling_without_noise` | If true, performs deterministic denoising |
+| `sample_savepath`        | Output directory for sampled structures   |
+
+---
+
+## 🏋️ Training
+
+To train locally:
+
+```bash
+python train.py --config configs/new_config.yml
+```
+
+To train on a cluster using SLURM (e.g. in a job script):
+
+```bash
+srun python -u train.py --config /absolute/path/to/new_config.yml
+```
+
+---
+
+## 🧪 Inference / Structure Generation
+
+To generate samples from a trained model:
+
+```bash
+python test.py --config configs/new_config.yml
+```
+
+Or on a cluster:
+
+```bash
+srun python -u test.py --config /absolute/path/to/new_config.yml
+```
