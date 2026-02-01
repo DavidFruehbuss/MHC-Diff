@@ -167,3 +167,63 @@ Or on a cluster:
 ```bash
 srun python -u test.py --config /absolute/path/to/new_config.yml
 ```
+
+---
+
+## 📊 Result Analysis
+
+After running inference with `test.py`, you can analyze the results using the scripts in the `analysis/` folder.
+
+### Analyzing 8K Dataset Results (10-fold CV)
+
+```bash
+python analysis/analyze_8k_results.py \
+    --results-dir ./checkpoints \
+    --output-dir ./analysis_output
+```
+
+This script:
+- Loads `samples.pkl.gz` files from fold directories
+- Computes RMSD statistics for X-ray and PANDORA structures
+- Reports both **best-of-10** and **average-of-10** (ensemble) metrics
+- Tracks divergent samples (>10Å cutoff)
+
+### Analyzing 100K Dataset Results (Multi-allele)
+
+```bash
+python analysis/analyze_100k_results.py \
+    --results-dir ./checkpoints/100k \
+    --output-dir ./analysis_output \
+    --cluster-mapping data_processing/pdb_cluster_mapping.tsv \
+    --allele-info data_processing/mhci_alleles.tsv
+```
+
+This script provides:
+- Overall RMSD statistics
+- Per-cluster breakdown (G-domain clusters 1-10)
+- Per-peptide-length analysis
+- Divergent sample tracking (>20Å cutoff)
+
+### Output Files
+
+| File | Description |
+| ---- | ----------- |
+| `*_results_summary.csv` | Per-fold/file statistics table |
+| `*_results_detailed.pkl` | Full results with RMSD distributions |
+
+### Example Output
+
+```
+============================================================
+OVERALL SUMMARY (8K Dataset - HLA-A*02:01 9-mer)
+============================================================
+
+X-ray RMSD (best-of-10) across all folds:
+  N:      160
+  Mean:   0.457 Å
+  Median: 0.448 Å
+
+Per-fold averages:
+  X-ray best-of-10 mean:   0.428 Å
+  X-ray avg-of-10 mean:    1.055 Å
+```

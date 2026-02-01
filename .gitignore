@@ -1,0 +1,52 @@
+# Data files (large HDF5 files)
+data/
+*.hdf5
+
+# Zenodo upload preparation (separate upload)
+zenodo/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Checkpoints and model weights (large files)
+checkpoints/*/checkpoints/
+checkpoints/*/wandb/
+*.ckpt
+*.pt
+*.pth
+
+# Sample files (large)
+*.pkl.gz
+
+# Environment
+.env
+.venv
+env/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+/tmp/
+*.tmp
+
