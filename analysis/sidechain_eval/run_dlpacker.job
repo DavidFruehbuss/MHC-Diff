@@ -1,0 +1,41 @@
+#!/bin/bash
+#SBATCH --partition=staging
+#SBATCH --account=gusr40799
+#SBATCH --time=04:00:00
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
+#SBATCH --job-name=sidechain_dlpacker
+#SBATCH --output=/gpfs/scratch1/shared/dfruhbus/MHC-Diff_sidechain_eval/run_dlpacker.out
+
+set -euo pipefail
+
+PYTHON=${PYTHON:-/home/dfruhbus/.conda/envs/mol/bin/python}
+REPO=${MHC_DIFF_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}
+EVAL=${SIDECHAIN_EVAL_DIR:-/gpfs/scratch1/shared/dfruhbus/MHC-Diff_sidechain_eval}
+SCRIPTS="$REPO/analysis/sidechain_eval"
+PIP_TARGET=${PIP_TARGET:-/gpfs/scratch1/shared/dfruhbus/py_packages}
+export MHC_DIFF_ROOT="$REPO"
+export PIP_CACHE_DIR=${PIP_CACHE_DIR:-/gpfs/scratch1/shared/dfruhbus/pip_cache}
+export PYTHONPATH="${PIP_TARGET}:${PYTHONPATH:-}"
+
+cd "$REPO"
+
+echo "=== Build / refresh inputs ==="
+$PYTHON "$SCRIPTS/select_subset.py" --output "$EVAL/selected_50.csv"
+$PYTHON "$SCRIPTS/build_inputs.py" --selection "$EVAL/selected_50.csv" --out-dir "$EVAL"
+
+echo "=== Install DLPacker if missing (scratch, avoid home quota) ==="
+mkdir -p "$PIP_TARGET" "$PIP_CACHE_DIR"
+$PYTHON -c "import dlpacker" 2>/dev/null || $PYTHON -m pip install --target "$PIP_TARGET" dlpacker
+
+echo "=== DLPacker sidechain packing ==="
+$PYTHON "$SCRIPTS/run_dlpacker.py" --eval-dir "$EVAL" --selection "$EVAL/selected_50.csv"
+
+echo "=== Evaluate DLPacker vs crystal ==="
+$PYTHON "$SCRIPTS/evaluate_vs_gt.py" --eval-dir "$EVAL" --selection "$EVAL/selected_50.csv" --methods dlpacker
+
+echo "=== Refresh comparison table ==="
+$PYTHON "$SCRIPTS/evaluate_vs_gt.py" --eval-dir "$EVAL" --selection "$EVAL/selected_50.csv" --methods ca_input pdbfixer dlpacker 2>/dev/null || \
+  $PYTHON "$SCRIPTS/evaluate_vs_gt.py" --eval-dir "$EVAL" --selection "$EVAL/selected_50.csv" --methods ca_input dlpacker
+
+echo "DONE"

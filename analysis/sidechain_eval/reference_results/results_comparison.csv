@@ -1,0 +1,4 @@
+method,ca_rmsd,bb_rmsd,sc_rmsd,all_heavy_rmsd
+ca_input,0.770,0.834,,0.834
+pdbfixer,1.078,1.213,3.117,2.351
+dlpacker,0.770,0.577,2.680,1.901

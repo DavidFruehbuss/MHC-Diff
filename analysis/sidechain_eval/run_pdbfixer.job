@@ -1,0 +1,33 @@
+#!/bin/bash
+#SBATCH --partition=staging
+#SBATCH --account=gusr40799
+#SBATCH --time=08:00:00
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=64G
+#SBATCH --job-name=sidechain_pdbfixer
+#SBATCH --output=/gpfs/scratch1/shared/dfruhbus/MHC-Diff_sidechain_eval/run_pdbfixer.out
+
+set -euo pipefail
+
+PYTHON=${PYTHON:-/home/dfruhbus/.conda/envs/mol/bin/python}
+REPO=${MHC_DIFF_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}
+EVAL=${SIDECHAIN_EVAL_DIR:-/gpfs/scratch1/shared/dfruhbus/MHC-Diff_sidechain_eval}
+SCRIPTS="$REPO/analysis/sidechain_eval"
+export MHC_DIFF_ROOT="$REPO"
+
+cd "$REPO"
+
+echo "=== Select 50 lowest CA-RMSD (best-of-10) ==="
+$PYTHON "$SCRIPTS/select_subset.py" --output "$EVAL/selected_50.csv"
+
+echo "=== Build inputs (preserve residue numbering) ==="
+rm -rf "$EVAL/inputs_ca" "$EVAL/ground_truth" "$EVAL/inputs_bb" "$EVAL/inputs_ca_new" "$EVAL/inputs_packer_peptide"
+$PYTHON "$SCRIPTS/build_inputs.py" --selection "$EVAL/selected_50.csv" --out-dir "$EVAL"
+
+echo "=== PDBFixer + OpenMM (fixed peptide backbone: crystal N,C,O + predicted CA) ==="
+$PYTHON adding_sidechains.py "$EVAL/inputs_bb"
+
+echo "=== Evaluate ==="
+$PYTHON "$SCRIPTS/evaluate_vs_gt.py" --eval-dir "$EVAL" --selection "$EVAL/selected_50.csv" --methods ca_input pdbfixer
+
+echo "DONE"

@@ -1,0 +1,3 @@
+ca_input: CA=0.770 A, BB=0.834 A, SC= A, ALL=0.834 A (mean vs crystal)
+pdbfixer: CA=1.078 A, BB=1.213 A, SC=3.117 A, ALL=2.351 A (mean vs crystal)
+dlpacker: CA=0.770 A, BB=0.577 A, SC=2.680 A, ALL=1.901 A (mean vs crystal)

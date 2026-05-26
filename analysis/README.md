@@ -29,6 +29,12 @@ python analysis/analyze_8k_results.py \
 
 ---
 
+### `sidechain_eval/`
+
+Sidechain reconstruction benchmark: PDBFixer + OpenMM vs DLPacker on 50 X-ray structures (see `sidechain_eval/README.md`). Includes appendix LaTeX table and rebuttal draft.
+
+---
+
 ### `analyze_100k_results.py`
 
 Analyzes results from the 100K dataset (multi-allele, G-domain clustered).

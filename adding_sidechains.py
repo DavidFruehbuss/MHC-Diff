@@ -135,6 +135,22 @@ def count_std_residues(structure, chain_id):
     return 0
 
 
+def peptide_has_backbone(structure, chain_id=PEPTIDE_CHAIN_ID):
+    """True if every standard peptide residue has N, CA, and C."""
+    n = 0
+    for model in structure:
+        if chain_id not in model:
+            return False
+        for res in model[chain_id]:
+            if not is_aa(res, standard=True):
+                continue
+            n += 1
+            names = {atom.get_name() for atom in res}
+            if not {"N", "CA", "C"}.issubset(names):
+                return False
+    return n > 0
+
+
 def guess_rebuilt_peptide_chain_id(rebuilt_struct, target_len):
     lengths = chain_length_map(rebuilt_struct)
     best = None
@@ -299,16 +315,24 @@ def process_pdb(pdb_path, output_folder, chain_pep=PEPTIDE_CHAIN_ID, chain_mhc=M
     fixed_full   = os.path.join(output_folder, basename.replace(".pdb", "_full_complex_fixed.pdb"))
     minimized_full = os.path.join(output_folder, basename.replace(".pdb", "_full_complex_min.pdb"))
 
-    # 1) Build CA-only peptide (keep MHC)
-    extract_ca_peptide(pdb_path, stripped_pdb, chain_pep)
-
-    # 2) Reconstruct peptide with PDBFixer
-    reconstruct_with_pdbfixer(stripped_pdb, rebuilt_pdb)
-
-    # 3) Load structures
     parser = PDBParser(QUIET=True)
     original = parser.get_structure("orig", pdb_path)
-    rebuilt  = parser.get_structure("rebuild", rebuilt_pdb)
+    use_backbone = peptide_has_backbone(original, chain_pep)
+
+    if use_backbone:
+        # Fixed backbone (crystal N,C,O + predicted CA): only add sidechains
+        print("[INFO] {} - peptide backbone present; skipping CA-only strip".format(basename))
+        reconstruct_with_pdbfixer(pdb_path, rebuilt_pdb)
+    else:
+        # 1) Build CA-only peptide (keep MHC)
+        extract_ca_peptide(pdb_path, stripped_pdb, chain_pep)
+        # 2) Reconstruct peptide with PDBFixer
+        reconstruct_with_pdbfixer(stripped_pdb, rebuilt_pdb)
+
+    # 3) Load structures
+    if not use_backbone:
+        original = parser.get_structure("orig", pdb_path)
+    rebuilt = parser.get_structure("rebuild", rebuilt_pdb)
 
     # 4) Identify peptide chain in rebuilt (PDBFixer may rename it)
     target_len = count_std_residues(original, chain_pep)

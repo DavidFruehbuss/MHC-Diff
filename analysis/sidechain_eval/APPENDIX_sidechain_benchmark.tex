@@ -1,0 +1,31 @@
+% Appendix table: sidechain reconstruction on 50 X-ray 8K structures
+% (lowest best-of-10 CA-RMSD subset). Mean peptide RMSD vs crystal (Å).
+% CA: unaligned benchmark-style RMSE. BB/SC/ALL: after CA superposition.
+
+\begin{table}[ht]
+\centering
+\caption{Sidechain reconstruction benchmark (50 X-ray structures, mean RMSD vs crystal). MHC-Diff provides predicted C$\alpha$ coordinates; crystal peptide N, C, O are used as fixed backbone for packing. Literature values (PANDORA, APE-Gen2, SwiftMHC) are end-to-end modeling benchmarks reported in the original papers (different evaluation sets and superposition protocols; included for context).}
+\label{tab:sidechain_benchmark}
+\begin{tabular}{lcccc}
+\toprule
+Method & CA & BB & SC & All heavy \\
+\midrule
+CA input (MHC-Diff) & 0.77 & 0.83 & --- & 0.83 \\
+PDBFixer + OpenMM & 1.08 & 1.21 & 3.12 & 2.35 \\
+DLPacker & 0.77 & 0.58 & 2.68 & 1.90 \\
+\midrule
+\multicolumn{5}{l}{\textit{Reference (end-to-end tools, reported medians/means)}} \\
+PANDORA\textsuperscript{a} & 0.70--0.86 & 0.82 & --- & 1.53 \\
+APE-Gen 1\textsuperscript{b} & 0.91 & --- & --- & 2.02 \\
+APE-Gen 2\textsuperscript{c} & $\lesssim$1.0 & $\sim$0.8 & --- & improved vs APE-Gen 1 \\
+SwiftMHC\textsuperscript{d} & 1.19--1.32 & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}
+\small
+\textsuperscript{a} Backbone/full-atom L-RMSD after MHC superposition (835 pMHC-I; Marzella et al., Front. Immunol. 2022).\\
+\textsuperscript{b} Best-of-ensemble mean (Abella et al., Molecules 2019).\\
+\textsuperscript{c} Leave-one-PDB-out; $>$50\% models $\leq$1\,\AA\ backbone L-RMSD (Fasoulis et al., JCIM 2024).\\
+\textsuperscript{d} Median C$\alpha$-RMSD, HLA-A*02:01 9-mers (van Tilborg et al., bioRxiv 2025).\\
+\end{flushleft}
+\end{table}
