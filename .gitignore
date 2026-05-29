@@ -50,3 +50,11 @@ Thumbs.db
 /tmp/
 *.tmp
 
+# Generated outputs and large result artifacts
+outs/
+results/structures/
+*.out
+
+# Large analysis archives
+analysis/*.zip
+
