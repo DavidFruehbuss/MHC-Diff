@@ -227,3 +227,42 @@ Per-fold averages:
   X-ray best-of-10 mean:   0.428 Å
   X-ray avg-of-10 mean:    1.055 Å
 ```
+
+## ⚖️ License
+
+MHC-Diff is released under the **Apache License, Version 2.0**. See the
+[`LICENSE`](./LICENSE) and [`NOTICE`](./NOTICE) files for the full terms.
+
+You are free to use, modify, and distribute this software — including for
+commercial purposes — provided you retain the copyright/attribution notices
+and state any changes you make, as described in the license.
+
+## 📄 How to Cite
+
+If you use MHC-Diff in your research, please cite the accompanying paper:
+
+> Frühbuß, D., Baakman, C., Nastase, M., Teusink, S., Bekkers, E.,
+> Jegelka, S., & Xue, L. C. (2026). *MHC-Diff: Fast and Accurate
+> Peptide-MHC Structure Prediction via an Equivariant Diffusion Model.*
+> Manuscript under review.
+
+BibTeX:
+
+```bibtex
+@article{fruhbuss2026mhcdiff,
+  title   = {MHC-Diff: Fast and Accurate Peptide-MHC Structure Prediction via an Equivariant Diffusion Model},
+  author  = {Fr\"uhbu\ss, David and Baakman, Coos and Nastase, Matei and Teusink, Siem and Bekkers, Erik and Jegelka, Stefanie and Xue, Li C.},
+  year    = {2026},
+  note    = {Manuscript under review}
+}
+```
+
+> **Note:** the journal, volume, and DOI will be added here once the paper is
+> published. This repository also provides a machine-readable
+> [`CITATION.cff`](./CITATION.cff) — GitHub renders a "Cite this repository"
+> button from it.
+
+The datasets (8K and 100K, including clustering and splits) are archived on
+Zenodo: [10.5281/zenodo.18456111](https://doi.org/10.5281/zenodo.18456111) and
+[10.5281/zenodo.18456927](https://doi.org/10.5281/zenodo.18456927).
+

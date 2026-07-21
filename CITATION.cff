@@ -1,0 +1,49 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the accompanying article below."
+title: "MHC-Diff: Fast and Accurate Peptide-MHC Structure Prediction via an Equivariant Diffusion Model"
+abstract: "Equivariant diffusion model for fast and accurate generation of peptide-MHC (pMHC) structures."
+type: software
+authors:
+  - family-names: "Frühbuß"
+    given-names: "David"
+  - family-names: "Baakman"
+    given-names: "Coos"
+  - family-names: "Nastase"
+    given-names: "Matei"
+  - family-names: "Teusink"
+    given-names: "Siem"
+  - family-names: "Bekkers"
+    given-names: "Erik"
+  - family-names: "Jegelka"
+    given-names: "Stefanie"
+  - family-names: "Xue"
+    given-names: "Li C."
+license: Apache-2.0
+repository-code: "https://github.com/X-lab-3D/MHC-Diff"
+url: "https://github.com/X-lab-3D/MHC-Diff"
+keywords:
+  - peptide-MHC
+  - structure prediction
+  - diffusion model
+  - equivariant neural network
+  - immunotherapy
+preferred-citation:
+  type: article
+  title: "MHC-Diff: Fast and Accurate Peptide-MHC Structure Prediction via an Equivariant Diffusion Model"
+  year: 2026
+  notes: "Manuscript under review. Journal, volume, and DOI will be added upon publication."
+  authors:
+    - family-names: "Frühbuß"
+      given-names: "David"
+    - family-names: "Baakman"
+      given-names: "Coos"
+    - family-names: "Nastase"
+      given-names: "Matei"
+    - family-names: "Teusink"
+      given-names: "Siem"
+    - family-names: "Bekkers"
+      given-names: "Erik"
+    - family-names: "Jegelka"
+      given-names: "Stefanie"
+    - family-names: "Xue"
+      given-names: "Li C."
