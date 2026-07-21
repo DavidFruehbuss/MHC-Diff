@@ -93,7 +93,11 @@ if __name__ == "__main__":
         start_time = time.time()
 
         # prepare peptide-MHC
-        mol_pro_list = [test_dataset[i+j] for _ in range(num_samples) for j in range(sample_batch_size)]
+        # NOTE: case-major order — each structure's `num_samples` copies are contiguous,
+        # so the downstream rmse[j*num_samples:(j+1)*num_samples] grouping is correct.
+        # (The old copy-major order `for _ in range(num_samples) for j in range(sample_batch_size)`
+        #  silently mis-grouped best-of-10 and mislabeled x_target/x_predicted for sample_batch_size > 1.)
+        mol_pro_list = [test_dataset[i+j] for j in range(sample_batch_size) for _ in range(num_samples)]
 
         mol_pro_samples = PDB_Dataset.collate_fn(mol_pro_list)
 
